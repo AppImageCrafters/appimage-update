@@ -7,13 +7,19 @@ import (
 	"strings"
 )
 
+type ControlHeaderHashLenghts struct {
+	ConsecutiveMatchNeeded uint64
+	WeakCheckSumBytes      uint64
+	StrongCheckSumBytes    uint64
+}
+
 type ControlHeader struct {
 	Version     string
 	MTime       string
 	FileName    string
 	BlockSize   uint64
 	Length      uint64
-	HashLengths []uint64
+	HashLengths ControlHeaderHashLenghts
 	URL         string
 	SHA1        string
 }
@@ -34,6 +40,7 @@ func loadControlHeader(data []byte) (header ControlHeader, dataStart int) {
 	slice := data[:]
 	line_end := bytes.Index(slice, []byte("\n"))
 
+	// the header end is marked by an empty line "\n"
 	for line_end != 0 && line_end != -1 {
 		dataStart += line_end + 1
 		line := string(slice[:line_end])
@@ -74,7 +81,7 @@ func setHeaderValue(header *ControlHeader, k string, v string) {
 	case "hash-lengths":
 		hashLenghts, err := parseHaseLengths(v)
 		if err == nil {
-			header.HashLengths = hashLenghts
+			header.HashLengths = *hashLenghts
 		}
 	case "url":
 		header.URL = v
@@ -85,17 +92,41 @@ func setHeaderValue(header *ControlHeader, k string, v string) {
 	}
 }
 
-func parseHaseLengths(s string) (hashLengths []uint64, err error) {
+func parseHaseLengths(s string) (hashLengths *ControlHeaderHashLenghts, err error) {
+	const errorPrefix = "Invalid Hash-Lengths entry"
 	parts := strings.Split(s, ",")
-	hashLengths = make([]uint64, len(parts))
+	hashLengthsArray := make([]uint64, len(parts))
 
 	for i, v := range parts {
 		vi, err := strconv.ParseUint(v, 10, 0)
 		if err == nil {
-			hashLengths[i] = vi
+			hashLengthsArray[i] = vi
 		} else {
 			return nil, err
 		}
+	}
+
+	if len(hashLengthsArray) != 3 {
+		return nil,
+			fmt.Errorf(errorPrefix + ", expected: " + " ConsecutiveMatchNeeded, WeakCheckSumBytes, StrongCheckSumBytes")
+	}
+
+	hashLengths = &ControlHeaderHashLenghts{
+		ConsecutiveMatchNeeded: hashLengthsArray[0],
+		WeakCheckSumBytes:      hashLengthsArray[1],
+		StrongCheckSumBytes:    hashLengthsArray[2],
+	}
+
+	if hashLengths.ConsecutiveMatchNeeded < 1 || hashLengths.ConsecutiveMatchNeeded > 2 {
+		return nil, fmt.Errorf(errorPrefix + ": ConsecutiveMatchNeeded must be in rage [1, 2] ")
+	}
+
+	if hashLengths.WeakCheckSumBytes < 1 || hashLengths.WeakCheckSumBytes > 4 {
+		return nil, fmt.Errorf(errorPrefix + ": WeakCheckSumBytes must be in rage [1, 4] ")
+	}
+
+	if hashLengths.StrongCheckSumBytes < 3 || hashLengths.StrongCheckSumBytes > 16 {
+		return nil, fmt.Errorf(errorPrefix + ": StrongCheckSumBytes must be in rage [4, 16] ")
 	}
 
 	return hashLengths, nil
