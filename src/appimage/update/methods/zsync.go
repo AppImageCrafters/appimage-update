@@ -25,7 +25,7 @@ func (instance *Zsync) Execute() error {
 	if err != nil {
 		return err
 	}
-	zsync.Load(zsyncRawData)
+	zsync.LoadControl(zsyncRawData)
 
 	return nil
 }
