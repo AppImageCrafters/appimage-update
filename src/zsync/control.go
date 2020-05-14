@@ -33,9 +33,9 @@ func LoadControl(data []byte) (*Control, error) {
 func loadControlHeader(data []byte) (header ControlHeader, dataStart int) {
 	slice := data[:]
 	line_end := bytes.Index(slice, []byte("\n"))
-	dataStart += line_end
 
 	for line_end != 0 && line_end != -1 {
+		dataStart += line_end + 1
 		line := string(slice[:line_end])
 
 		k, v := parseHeaderLine(line)
@@ -43,10 +43,13 @@ func loadControlHeader(data []byte) (header ControlHeader, dataStart int) {
 
 		slice = slice[line_end+1:]
 		line_end = bytes.Index(slice, []byte("\n"))
-		dataStart += line_end
 	}
 
-	return header, bytes.Index(data, slice[1:])
+	if line_end >= 0 {
+		dataStart += line_end + 1
+	}
+
+	return header, dataStart
 }
 
 func setHeaderValue(header *ControlHeader, k string, v string) {
