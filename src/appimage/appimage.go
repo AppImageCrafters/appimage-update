@@ -10,7 +10,7 @@ type AppImage struct {
 	Path string
 }
 
-func (target *AppImage) GetUpdateInfo() (*string, error) {
+func (target *AppImage) GetUpdateInfo() (string, error) {
 	elfFile, err := elf.Open(target.Path)
 	if err != nil {
 		panic("Unable to open target: \"" + target.Path + "\"." + err.Error())
@@ -28,9 +28,9 @@ func (target *AppImage) GetUpdateInfo() (*string, error) {
 
 	str_end := bytes.Index(sectionData, []byte("\000"))
 	if str_end == -1 || str_end == 0 {
-		return nil, fmt.Errorf("No update information found")
+		return "", fmt.Errorf("No update information found")
 	}
 
 	update_info := string(sectionData[:str_end])
-	return &update_info, nil
+	return update_info, nil
 }

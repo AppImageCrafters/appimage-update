@@ -1,28 +1,34 @@
 package update
 
 import (
-	"appimage-update/src/appimage/update/methods"
+	"appimage-update/src/appimage"
+	"appimage-update/src/appimage/update/updaters"
 	"fmt"
 	"strings"
 )
 
-type Method interface {
-	Name() string
-	Execute() error
+type Updater interface {
+	Method() string
+
+	Lookup() (updateAvailable bool, err error)
+	Download() (output string, err error)
 }
 
-// factory methods for creating Update Method instances from the AppImage update info
-func NewMethod(updateInfo *string) (Method, error) {
-	parts := strings.Split(*updateInfo, "|")
-
-	switch parts[0] {
-	case "zsync":
-		return methods.NewZsyncUpdate(parts)
-	case "gh-releases-zsync":
-		return methods.NewGitHubUpdate(parts)
-	case "bintray-zsync":
-		return methods.NewBintrayZsync(parts)
-	default:
-		return nil, fmt.Errorf("Unknown update method: " + parts[0])
+// factory updaters for creating Updater instances from an AppImage file
+func NewUpdaterFor(target *string) (Updater, error) {
+	appImage := appimage.AppImage{*target}
+	updateInfoString, err := appImage.GetUpdateInfo()
+	if err != nil {
+		return nil, err
 	}
+
+	if strings.HasPrefix(updateInfoString, "zsync") {
+		return updaters.NewZSyncUpdater(&updateInfoString, target)
+	}
+
+	if strings.HasPrefix(updateInfoString, "gh-releases-zsync") {
+		return updaters.NewGitHubUpdater(&updateInfoString, target)
+	}
+
+	return nil, fmt.Errorf("Invalid updated information: ", updateInfoString)
 }

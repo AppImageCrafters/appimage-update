@@ -1,7 +1,6 @@
 package main
 
 import (
-	"appimage-update/src/appimage"
 	"appimage-update/src/appimage/update"
 	"flag"
 	"fmt"
@@ -15,21 +14,27 @@ func main() {
 	}
 
 	for _, target := range args {
-		fmt.Println("Reading update information: ", target)
-
-		appImage := appimage.AppImage{target}
-		updateInfoString, err := appImage.GetUpdateInfo()
+		updateMethod, err := update.NewUpdaterFor(&target)
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println(err.Error())
 			continue
 		}
 
-		updateMethod, err := update.NewMethod(updateInfoString)
+		fmt.Println("Looking for updates of: ", target)
+		updateAvailable, err := updateMethod.Lookup()
 		if err != nil {
-			fmt.Println(err)
+			fmt.Println(err.Error())
 			continue
-		} else {
-			updateMethod.Execute()
 		}
+		if !updateAvailable {
+			fmt.Println("No updates were found for: ", target)
+			continue
+		}
+
+		result, err := updateMethod.Download()
+		if err != nil {
+			fmt.Println(err.Error())
+		}
+		fmt.Println("Update downloaded to: " + result)
 	}
 }

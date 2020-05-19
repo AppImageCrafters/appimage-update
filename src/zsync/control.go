@@ -17,8 +17,9 @@ type ControlHeader struct {
 	Version     string
 	MTime       string
 	FileName    string
+	Blocks      uint64
 	BlockSize   uint64
-	Length      uint64
+	FileLength  uint64
 	HashLengths ControlHeaderHashLenghts
 	URL         string
 	SHA1        string
@@ -27,16 +28,22 @@ type ControlHeader struct {
 type Control struct {
 	ControlHeader
 
-	data []byte
+	checksums [][]byte
 }
 
-func LoadControl(data []byte) (*Control, error) {
-	header, dataStart := loadControlHeader(data)
+func ParseControl(data []byte) (*Control, error) {
+	if len(data) == 0 {
+		return nil, fmt.Errorf("Missing zsync control data")
+	}
+	header, _, err := LoadControlHeader(data)
+	if err != nil {
+		return nil, err
+	}
 
-	return &Control{header, data[dataStart:]}, nil
+	return &Control{header, nil}, nil
 }
 
-func loadControlHeader(data []byte) (header ControlHeader, dataStart int) {
+func LoadControlHeader(data []byte) (header ControlHeader, dataStart int, err error) {
 	slice := data[:]
 	line_end := bytes.Index(slice, []byte("\n"))
 
@@ -56,7 +63,13 @@ func loadControlHeader(data []byte) (header ControlHeader, dataStart int) {
 		dataStart += line_end + 1
 	}
 
-	return header, dataStart
+	if header.BlockSize == 0 {
+		return header, dataStart, fmt.Errorf("Malformed zsync control: missing BlockSize ")
+	}
+
+	header.Blocks = (header.FileLength + header.BlockSize - 1) / header.BlockSize
+
+	return header, dataStart, nil
 }
 
 func setHeaderValue(header *ControlHeader, k string, v string) {
@@ -76,7 +89,7 @@ func setHeaderValue(header *ControlHeader, k string, v string) {
 	case "length":
 		vi, err := strconv.ParseUint(v, 10, 0)
 		if err == nil {
-			header.Length = vi
+			header.FileLength = vi
 		}
 	case "hash-lengths":
 		hashLenghts, err := parseHaseLengths(v)
