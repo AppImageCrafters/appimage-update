@@ -6,13 +6,9 @@ import (
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/Redundancy/go-sync"
-	"github.com/Redundancy/go-sync/filechecksum"
-	"github.com/Redundancy/go-sync/indexbuilder"
 	"github.com/schollz/progressbar/v3"
 	"io"
 	"net/http"
-	"os"
 	"path/filepath"
 	"strings"
 )
@@ -66,46 +62,47 @@ func (inst *ZSync) Lookup() (updateAvailable bool, err error) {
 }
 
 func (inst *ZSync) Download() (output string, err error) {
-	generator := filechecksum.NewFileChecksumGenerator(uint(inst.updateControl.BlockSize))
-	sourceFile, _ := os.Open(inst.seed.Path)
-
-	_, referenceFileIndex, checksumLookup, err := indexbuilder.BuildChecksumIndex(generator, sourceFile)
-	if err != nil {
-		return output, err
-	}
-	sourceFileInfo, err := sourceFile.Stat()
-	if err != nil {
-		return output, err
-	}
+	localFilename := inst.seed.Path
+	referencePath := inst.url
 	output = filepath.Dir(inst.seed.Path) + "/" + inst.updateControl.FileName
 
-	blockCount := (uint64(sourceFileInfo.Size()) + inst.updateControl.BlockSize - 1) / inst.updateControl.BlockSize
-
-	fs := &gosync.BasicSummary{
-		ChecksumIndex:  referenceFileIndex,
-		ChecksumLookup: checksumLookup,
-		BlockCount:     uint(blockCount),
-		BlockSize:      uint(inst.updateControl.BlockSize),
-		FileSize:       sourceFileInfo.Size(),
+	fs := &zsync.BasicSummary{
+		ChecksumIndex:  inst.updateControl.ChecksumIndex,
+		ChecksumLookup: inst.updateControl.ChecksumLookup,
+		BlockCount:     inst.updateControl.Blocks,
+		BlockSize:      inst.updateControl.BlockSize,
+		FileSize:       inst.updateControl.FileLength,
 	}
 
-	rsync, err := gosync.MakeRSync(inst.seed.Path, inst.url, output, fs)
+	rsync, err := zsync.MakeRSync(
+		localFilename,
+		referencePath,
+		output,
+		fs,
+	)
+
 	if err != nil {
-		return output, err
+		return
 	}
-
-	defer rsync.Close()
 
 	err = rsync.Patch()
 
 	if err != nil {
-		return output, err
+		return
 	}
 
-	outputAppImage := appimage.AppImage{Path: output}
-	outputAppImage.SetExecutionPermissions()
-
+	rsync.Close()
 	return output, nil
+}
+
+func (inst *ZSync) resolveUrl() string {
+	if strings.HasPrefix(inst.updateControl.URL, "http") ||
+		strings.HasPrefix(inst.updateControl.URL, "ftp") {
+		return inst.updateControl.URL
+	}
+
+	urlPrefixEnd := strings.LastIndex(inst.url, "/")
+	return inst.url[:urlPrefixEnd] + "/" + inst.updateControl.URL
 }
 
 func getZsyncRawData(url string) ([]byte, error) {

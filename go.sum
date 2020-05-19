@@ -1,5 +1,3 @@
-github.com/Redundancy/go-sync v0.0.0-20160424152509-8931874cad5c h1:/khnqZBYJRz+PbvpKZRhFEzjwZgCIAgwIeQBsA4m1MA=
-github.com/Redundancy/go-sync v0.0.0-20160424152509-8931874cad5c/go.mod h1:5Bmgf0ZQ/uM/czHDWPQvkArJK6sk12/7KffehZ67Vxw=
 github.com/danwakefield/fnmatch v0.0.0-20160403171240-cbb64ac3d964 h1:y5HC9v93H5EPKqaS1UYVg1uYah5Xf51mBfIoWehClUQ=
 github.com/danwakefield/fnmatch v0.0.0-20160403171240-cbb64ac3d964/go.mod h1:Xd9hchkHSWYkEqJwUGisez3G1QY8Ryz0sdWrLPMGjLk=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

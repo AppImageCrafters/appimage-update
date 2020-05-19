@@ -1,6 +1,9 @@
 package zsync
 
 import (
+	"appimage-update/src/zsync/chunks"
+	"appimage-update/src/zsync/filechecksum"
+	"appimage-update/src/zsync/index"
 	"bytes"
 	"fmt"
 	"strconv"
@@ -8,18 +11,18 @@ import (
 )
 
 type ControlHeaderHashLenghts struct {
-	ConsecutiveMatchNeeded uint64
-	WeakCheckSumBytes      uint64
-	StrongCheckSumBytes    uint64
+	ConsecutiveMatchNeeded uint
+	WeakCheckSumBytes      uint
+	StrongCheckSumBytes    uint
 }
 
 type ControlHeader struct {
 	Version     string
 	MTime       string
 	FileName    string
-	Blocks      uint64
-	BlockSize   uint64
-	FileLength  uint64
+	Blocks      uint
+	BlockSize   uint
+	FileLength  int64
 	HashLengths ControlHeaderHashLenghts
 	URL         string
 	SHA1        string
@@ -28,19 +31,23 @@ type ControlHeader struct {
 type Control struct {
 	ControlHeader
 
-	checksums [][]byte
+	ChecksumIndex  *index.ChecksumIndex
+	ChecksumLookup filechecksum.ChecksumLookup
 }
 
-func ParseControl(data []byte) (*Control, error) {
+func ParseControl(data []byte) (control *Control, err error) {
 	if len(data) == 0 {
 		return nil, fmt.Errorf("Missing zsync control data")
 	}
-	header, _, err := LoadControlHeader(data)
+	header, dataStart, err := LoadControlHeader(data)
 	if err != nil {
 		return nil, err
 	}
 
-	return &Control{header, nil}, nil
+	control = &Control{header, nil, nil}
+	control.ChecksumIndex, control.ChecksumLookup, header.Blocks, err = readChecksumIndex(data[dataStart:], header)
+
+	return
 }
 
 func LoadControlHeader(data []byte) (header ControlHeader, dataStart int, err error) {
@@ -67,7 +74,7 @@ func LoadControlHeader(data []byte) (header ControlHeader, dataStart int, err er
 		return header, dataStart, fmt.Errorf("Malformed zsync control: missing BlockSize ")
 	}
 
-	header.Blocks = (header.FileLength + header.BlockSize - 1) / header.BlockSize
+	header.Blocks = (uint(header.FileLength) + header.BlockSize - 1) / header.BlockSize
 
 	return header, dataStart, nil
 }
@@ -83,16 +90,16 @@ func setHeaderValue(header *ControlHeader, k string, v string) {
 	case "blocksize":
 		vi, err := strconv.ParseUint(v, 10, 0)
 		if err == nil {
-			header.BlockSize = vi
+			header.BlockSize = uint(vi)
 		}
 
 	case "length":
-		vi, err := strconv.ParseUint(v, 10, 0)
+		vi, err := strconv.ParseInt(v, 10, 0)
 		if err == nil {
 			header.FileLength = vi
 		}
 	case "hash-lengths":
-		hashLenghts, err := parseHaseLengths(v)
+		hashLenghts, err := parseHashLengths(v)
 		if err == nil {
 			header.HashLengths = *hashLenghts
 		}
@@ -105,15 +112,15 @@ func setHeaderValue(header *ControlHeader, k string, v string) {
 	}
 }
 
-func parseHaseLengths(s string) (hashLengths *ControlHeaderHashLenghts, err error) {
+func parseHashLengths(s string) (hashLengths *ControlHeaderHashLenghts, err error) {
 	const errorPrefix = "Invalid Hash-Lengths entry"
 	parts := strings.Split(s, ",")
-	hashLengthsArray := make([]uint64, len(parts))
+	hashLengthsArray := make([]uint, len(parts))
 
 	for i, v := range parts {
 		vi, err := strconv.ParseUint(v, 10, 0)
 		if err == nil {
-			hashLengthsArray[i] = vi
+			hashLengthsArray[i] = uint(vi)
 		} else {
 			return nil, err
 		}
@@ -154,4 +161,26 @@ func parseHeaderLine(line string) (key string, value string) {
 	}
 
 	return key, value
+}
+
+func readChecksumIndex(dataSlice []byte, header ControlHeader) (i *index.ChecksumIndex,
+	checksumLookup filechecksum.ChecksumLookup,
+	blockCount uint,
+	err error) {
+
+	reader := bytes.NewReader(dataSlice)
+	readChunks, err := chunks.LoadChecksumsFromReader(
+		reader,
+		int(header.HashLengths.WeakCheckSumBytes),
+		int(header.HashLengths.StrongCheckSumBytes),
+	)
+
+	if err != nil {
+		return
+	}
+
+	checksumLookup = chunks.StrongChecksumGetter(readChunks)
+	i = index.MakeChecksumIndex(readChunks)
+	blockCount = uint(len(readChunks))
+	return
 }
