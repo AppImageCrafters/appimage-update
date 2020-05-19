@@ -23,11 +23,11 @@ func NewUpdaterFor(target *string) (Updater, error) {
 	}
 
 	if strings.HasPrefix(updateInfoString, "zsync") {
-		return updaters.NewZSyncUpdater(&updateInfoString, target)
+		return updaters.NewZSyncUpdater(&updateInfoString, &appImage)
 	}
 
 	if strings.HasPrefix(updateInfoString, "gh-releases-zsync") {
-		return updaters.NewGitHubUpdater(&updateInfoString, target)
+		return updaters.NewGitHubUpdater(&updateInfoString, &appImage)
 	}
 
 	return nil, fmt.Errorf("Invalid updated information: ", updateInfoString)

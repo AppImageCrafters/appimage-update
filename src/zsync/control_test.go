@@ -15,7 +15,7 @@ Hash-Lengths: 2,2,5
 URL: Hello World-latest-x86_64.AppImage
 SHA-1: da7a3ee0ebb42db73f96c67438ff38c21204f676
 
-1234567890ABCDEF1234567890ABCDEF`)
+`)
 
 	control, _ := ParseControl(data)
 	assert.Equal(t, "0.6.2", control.Version)
@@ -28,6 +28,4 @@ SHA-1: da7a3ee0ebb42db73f96c67438ff38c21204f676
 	assert.Equal(t, uint64(5), control.HashLengths.StrongCheckSumBytes)
 	assert.Equal(t, "Hello World-latest-x86_64.AppImage", control.URL)
 	assert.Equal(t, "da7a3ee0ebb42db73f96c67438ff38c21204f676", control.SHA1)
-	assert.Equal(t, []byte("1234567890ABCDEF"), control.checksums[0])
-	assert.Equal(t, []byte("1234567890ABCDEF"), control.checksums[1])
 }

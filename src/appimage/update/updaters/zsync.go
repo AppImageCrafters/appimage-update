@@ -1,17 +1,16 @@
 package updaters
 
 import (
+	"appimage-update/src/appimage"
 	"appimage-update/src/zsync"
 	"bufio"
 	"bytes"
-	"crypto/sha1"
 	"fmt"
 	"github.com/Redundancy/go-sync"
 	"github.com/Redundancy/go-sync/filechecksum"
 	"github.com/Redundancy/go-sync/indexbuilder"
 	"github.com/schollz/progressbar/v3"
 	"io"
-	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -21,13 +20,13 @@ import (
 type ZSync struct {
 	url string
 
-	seed     string
+	seed     appimage.AppImage
 	seedSHA1 string
 
 	updateControl *zsync.Control
 }
 
-func NewZSyncUpdater(updateInfoString *string, target *string) (*ZSync, error) {
+func NewZSyncUpdater(updateInfoString *string, target *appimage.AppImage) (*ZSync, error) {
 	parts := strings.Split(*updateInfoString, "|")
 
 	if len(parts) != 2 {
@@ -57,7 +56,7 @@ func (inst *ZSync) Lookup() (updateAvailable bool, err error) {
 		return false, err
 	}
 
-	inst.seedSHA1 = getFileSHA1(inst.seed)
+	inst.seedSHA1 = inst.seed.GetSHA1()
 
 	if inst.seedSHA1 == inst.updateControl.SHA1 {
 		return false, nil
@@ -68,7 +67,7 @@ func (inst *ZSync) Lookup() (updateAvailable bool, err error) {
 
 func (inst *ZSync) Download() (output string, err error) {
 	generator := filechecksum.NewFileChecksumGenerator(uint(inst.updateControl.BlockSize))
-	sourceFile, _ := os.Open(inst.seed)
+	sourceFile, _ := os.Open(inst.seed.Path)
 
 	_, referenceFileIndex, checksumLookup, err := indexbuilder.BuildChecksumIndex(generator, sourceFile)
 	if err != nil {
@@ -78,7 +77,7 @@ func (inst *ZSync) Download() (output string, err error) {
 	if err != nil {
 		return output, err
 	}
-	output = filepath.Dir(inst.seed) + "/" + inst.updateControl.FileName
+	output = filepath.Dir(inst.seed.Path) + "/" + inst.updateControl.FileName
 
 	blockCount := (uint64(sourceFileInfo.Size()) + inst.updateControl.BlockSize - 1) / inst.updateControl.BlockSize
 
@@ -90,7 +89,7 @@ func (inst *ZSync) Download() (output string, err error) {
 		FileSize:       sourceFileInfo.Size(),
 	}
 
-	rsync, err := gosync.MakeRSync(inst.seed, inst.url, output, fs)
+	rsync, err := gosync.MakeRSync(inst.seed.Path, inst.url, output, fs)
 	if err != nil {
 		return output, err
 	}
@@ -102,6 +101,9 @@ func (inst *ZSync) Download() (output string, err error) {
 	if err != nil {
 		return output, err
 	}
+
+	outputAppImage := appimage.AppImage{Path: output}
+	outputAppImage.SetExecutionPermissions()
 
 	return output, nil
 }
@@ -128,19 +130,4 @@ func getZsyncRawData(url string) ([]byte, error) {
 	}
 
 	return buf.Bytes(), nil
-}
-
-func getFileSHA1(fileName string) string {
-	f, err := os.Open(fileName)
-	if err != nil {
-		log.Fatal(err)
-	}
-	defer f.Close()
-
-	h := sha1.New()
-	if _, err := io.Copy(h, f); err != nil {
-		log.Fatal(err)
-	}
-
-	return fmt.Sprintf("%x", h.Sum(nil))
 }

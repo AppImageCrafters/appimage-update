@@ -2,8 +2,13 @@ package appimage
 
 import (
 	"bytes"
+	"crypto/sha1"
 	"debug/elf"
+	"encoding/hex"
 	"fmt"
+	"io"
+	"log"
+	"os"
 )
 
 type AppImage struct {
@@ -33,4 +38,23 @@ func (target *AppImage) GetUpdateInfo() (string, error) {
 
 	update_info := string(sectionData[:str_end])
 	return update_info, nil
+}
+
+func (target *AppImage) GetSHA1() string {
+	f, err := os.Open(target.Path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer f.Close()
+
+	h := sha1.New()
+	if _, err := io.Copy(h, f); err != nil {
+		log.Fatal(err)
+	}
+
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+func (target *AppImage) SetExecutionPermissions() error {
+	return os.Chmod(target.Path, 7550)
 }

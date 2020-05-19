@@ -1,6 +1,7 @@
 package updaters
 
 import (
+	"appimage-update/src/appimage"
 	"context"
 	"fmt"
 	"github.com/danwakefield/fnmatch"
@@ -17,7 +18,7 @@ type GitHubZsync struct {
 	gitHubFilename   string
 }
 
-func NewGitHubUpdater(updateInfoString *string, target *string) (*GitHubZsync, error) {
+func NewGitHubUpdater(updateInfoString *string, target *appimage.AppImage) (*GitHubZsync, error) {
 	parts := strings.Split(*updateInfoString, "|")
 
 	if len(parts) != 5 {
