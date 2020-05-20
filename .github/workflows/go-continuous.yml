@@ -1,4 +1,4 @@
-name: Go
+name: Continuous Releases
 
 on:
   push:
@@ -40,7 +40,7 @@ jobs:
       uses: johnwbyrd/update-release@v1.0.0
       with:
         # Your Github token; try \$\{\{ secrets.GITHUB_TOKEN \}\} if your build lasts less than an hour, or create your own secret token with repository access if your build requires longer than an hour.
-        token: \$\{\{ secrets.GITHUB_TOKEN \}\}
+        token: ${{ secrets.GITHUB_TOKEN }}
         # Paths to built files to be released. May be absolute or relative to \$\{\{ github.workspace \}\}.
         files: ./appimage-update
         # The name of the release to be created. A reasonable looking release name will be created from the current \$\{\{ github.ref \}\} if this input is not supplied.
