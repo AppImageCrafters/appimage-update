@@ -31,11 +31,6 @@ jobs:
     - name: Build
       run: go build -v ./src/appimage-update/
 
-    - name: Upload a Build Artifact
-      uses: actions/upload-artifact@v2
-      with:
-        path: appimage-update
-
     - name: Update Release
       uses: johnwbyrd/update-release@v1.0.0
       with:
