@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"crypto/md5"
 	"fmt"
+	"github.com/schollz/progressbar/v3"
 	"io"
 	"io/ioutil"
 	"os"
@@ -200,13 +201,19 @@ func (rsync *RSync) Patch() (err error) {
 	mergedBlocks := merger.GetMergedBlocks()
 	missing := mergedBlocks.GetMissingBlocks(rsync.Summary.GetBlockCount() - 1)
 
+	bar := progressbar.DefaultBytes(
+		rsync.Summary.GetFileSize(),
+		"Merging patches: ",
+	)
+	progressOutput := io.MultiWriter(rsync.Output, bar)
+
 	return sequential.SequentialPatcher(
 		rsync.Input,
 		rsync.Source,
 		toPatcherMissingSpan(missing, int64(blockSize)),
 		toPatcherFoundSpan(mergedBlocks, int64(blockSize)),
 		20*megabyte,
-		rsync.Output,
+		progressOutput,
 	)
 }
 

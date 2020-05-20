@@ -45,7 +45,7 @@ type MissingBlockSpan struct {
 	StartBlock uint
 	EndBlock   uint
 
-	BlockSize  int64
+	BlockSize int64
 	// a hasher to use to ensure that the block response matches
 	Hasher hash.Hash
 	// the hash values that the blocks should have
