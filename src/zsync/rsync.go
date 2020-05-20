@@ -2,7 +2,6 @@ package zsync
 
 import (
 	"bufio"
-	"crypto/md5"
 	"fmt"
 	"github.com/schollz/progressbar/v3"
 	"io"
@@ -10,7 +9,6 @@ import (
 	"os"
 	"runtime"
 
-	"appimage-update/src/zsync/blocksources"
 	"appimage-update/src/zsync/chunks"
 	"appimage-update/src/zsync/comparer"
 	"appimage-update/src/zsync/filechecksum"
@@ -88,84 +86,6 @@ func (fs *BasicSummary) GetBlockCount() uint {
 // GetFileSize gets the file size of the file
 func (fs *BasicSummary) GetFileSize() int64 {
 	return fs.FileSize
-}
-
-// MakeRSync creates an RSync object using string paths,
-// inferring most of the configuration
-func MakeRSync(
-	InputFile,
-	Source,
-	OutFile string,
-	Summary FileSummary,
-) (r *RSync, err error) {
-	useTempFile := false
-	if useTempFile, err = IsSameFile(InputFile, OutFile); err != nil {
-		return nil, err
-	}
-
-	inputFile, err := os.Open(InputFile)
-
-	if err != nil {
-		return
-	}
-
-	var out io.WriteCloser
-	var outFilename = OutFile
-	var copier closer
-
-	if useTempFile {
-		out, outFilename, err = getTempFile()
-
-		if err != nil {
-			return
-		}
-
-		copier = &fileCopyCloser{
-			from: outFilename,
-			to:   OutFile,
-		}
-	} else {
-		out, err = getOutFile(OutFile)
-
-		if err != nil {
-			return
-		}
-
-		copier = nullCloser{}
-	}
-
-	// blocksource
-	var source *blocksources.BlockSourceBase
-
-	resolver := blocksources.MakeFileSizedBlockResolver(
-		uint64(Summary.GetBlockSize()),
-		Summary.GetFileSize(),
-	)
-
-	source = blocksources.NewHttpBlockSource(
-		Source,
-		DefaultConcurrency,
-		resolver,
-		&filechecksum.HashVerifier{
-			Hash:                md5.New(),
-			BlockSize:           Summary.GetBlockSize(),
-			BlockChecksumGetter: Summary,
-		},
-	)
-
-	r = &RSync{
-		Input:   inputFile,
-		Output:  out,
-		Source:  source,
-		Summary: Summary,
-		OnClose: []closer{
-			&fileCloser{inputFile, InputFile},
-			&fileCloser{out, outFilename},
-			copier,
-		},
-	}
-
-	return
 }
 
 // Patch the files
