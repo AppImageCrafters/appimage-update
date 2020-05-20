@@ -57,7 +57,7 @@ func (d Direct) getOutputFileName() string {
 func downloadFile(filepath string, url string) (err error) {
 
 	// Create the file
-	out, err := os.Create(filepath)
+	out, err := os.OpenFile(filepath, os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
 		return err
 	}

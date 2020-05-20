@@ -22,6 +22,10 @@ func NewUpdaterFor(target *string) (Updater, error) {
 		return nil, err
 	}
 
+	return NewUpdateForUpdateString(updateInfoString, appImage)
+}
+
+func NewUpdateForUpdateString(updateInfoString string, appImage appimage.AppImage) (Updater, error) {
 	if strings.HasPrefix(updateInfoString, "zsync") {
 		return updaters.NewZSyncUpdater(&updateInfoString, &appImage)
 	}
