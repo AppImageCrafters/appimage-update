@@ -1,14 +1,13 @@
 package filechecksum
 
 import (
+	"appimage-update/src/zsync/chunks"
+	"appimage-update/src/zsync/index"
+	"appimage-update/src/zsync/util/readers"
 	"bytes"
 	"io"
 	"os"
 	"testing"
-
-	"appimage-update/src/zsync/chunks"
-	"appimage-update/src/zsync/index"
-	"appimage-update/src/zsync/util/readers"
 )
 
 func TestChecksumGenerationEndsWithFilechecksum(t *testing.T) {

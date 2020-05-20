@@ -13,6 +13,7 @@ type HashVerifier struct {
 	BlockSize           uint
 	Hash                hash.Hash
 	BlockChecksumGetter ChecksumLookup
+	FinalChunkLen       uint
 }
 
 func (v *HashVerifier) VerifyBlockRange(startBlockID uint, data []byte) bool {
@@ -34,8 +35,16 @@ func (v *HashVerifier) VerifyBlockRange(startBlockID uint, data []byte) bool {
 			return true
 		}
 
+		if len(blockData) < int(v.BlockSize) {
+			zeroFilledBlock := make([]byte, v.BlockSize-uint(len(blockData)))
+			blockData = append(blockData, zeroFilledBlock...)
+		}
+
 		v.Hash.Write(blockData)
 		hashedData := v.Hash.Sum(nil)
+		if len(hashedData) > int(v.FinalChunkLen) {
+			hashedData = hashedData[:v.FinalChunkLen]
+		}
 
 		if bytes.Compare(expectedChecksum, hashedData) != 0 {
 			return false

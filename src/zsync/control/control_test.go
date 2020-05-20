@@ -1,4 +1,4 @@
-package zsync
+package control
 
 import (
 	"github.com/stretchr/testify/assert"

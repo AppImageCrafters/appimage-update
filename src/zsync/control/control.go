@@ -1,4 +1,8 @@
-package zsync
+package control
+
+/**
+Control provides parser for the zsync control (.zsync) files.
+*/
 
 import (
 	"appimage-update/src/zsync/chunks"
@@ -10,7 +14,7 @@ import (
 	"strings"
 )
 
-type ControlHeaderHashLenghts struct {
+type ControlHeaderHashLengths struct {
 	ConsecutiveMatchNeeded uint
 	WeakCheckSumBytes      uint
 	StrongCheckSumBytes    uint
@@ -23,7 +27,7 @@ type ControlHeader struct {
 	Blocks      uint
 	BlockSize   uint
 	FileLength  int64
-	HashLengths ControlHeaderHashLenghts
+	HashLengths ControlHeaderHashLengths
 	URL         string
 	SHA1        string
 }
@@ -112,7 +116,7 @@ func setHeaderValue(header *ControlHeader, k string, v string) {
 	}
 }
 
-func parseHashLengths(s string) (hashLengths *ControlHeaderHashLenghts, err error) {
+func parseHashLengths(s string) (hashLengths *ControlHeaderHashLengths, err error) {
 	const errorPrefix = "Invalid Hash-Lengths entry"
 	parts := strings.Split(s, ",")
 	hashLengthsArray := make([]uint, len(parts))
@@ -131,7 +135,7 @@ func parseHashLengths(s string) (hashLengths *ControlHeaderHashLenghts, err erro
 			fmt.Errorf(errorPrefix + ", expected: " + " ConsecutiveMatchNeeded, WeakCheckSumBytes, StrongCheckSumBytes")
 	}
 
-	hashLengths = &ControlHeaderHashLenghts{
+	hashLengths = &ControlHeaderHashLengths{
 		ConsecutiveMatchNeeded: hashLengthsArray[0],
 		WeakCheckSumBytes:      hashLengthsArray[1],
 		StrongCheckSumBytes:    hashLengthsArray[2],

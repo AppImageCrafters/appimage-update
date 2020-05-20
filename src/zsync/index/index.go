@@ -56,7 +56,15 @@ func MakeChecksumIndex(checksums []chunks.ChunkChecksum) *ChecksumIndex {
 	}
 
 	for _, chunk := range checksums {
-		weakChecksumAsInt := binary.LittleEndian.Uint32(chunk.WeakChecksum)
+		var weakChecksumAsInt uint32
+		if len(chunk.WeakChecksum) == 2 {
+			weakChecksumAsInt = uint32(binary.LittleEndian.Uint16(chunk.WeakChecksum))
+		}
+
+		if len(chunk.WeakChecksum) == 4 {
+			weakChecksumAsInt = binary.LittleEndian.Uint32(chunk.WeakChecksum)
+		}
+
 		arrayOffset := weakChecksumAsInt & 255
 
 		if n.weakChecksumLookup[arrayOffset] == nil {

@@ -3,12 +3,17 @@ package updaters
 import (
 	"appimage-update/src/appimage"
 	"appimage-update/src/zsync"
+	"appimage-update/src/zsync/blocksources"
+	"appimage-update/src/zsync/control"
+	"appimage-update/src/zsync/filechecksum"
 	"bufio"
 	"bytes"
 	"fmt"
 	"github.com/schollz/progressbar/v3"
+	"golang.org/x/crypto/md4"
 	"io"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strings"
 )
@@ -19,7 +24,7 @@ type ZSync struct {
 	seed     appimage.AppImage
 	seedSHA1 string
 
-	updateControl *zsync.Control
+	updateControl *control.Control
 }
 
 func NewZSyncUpdater(updateInfoString *string, target *appimage.AppImage) (*ZSync, error) {
@@ -47,7 +52,7 @@ func (inst *ZSync) Lookup() (updateAvailable bool, err error) {
 		return false, err
 	}
 
-	inst.updateControl, err = zsync.ParseControl(zsyncRawData)
+	inst.updateControl, err = control.ParseControl(zsyncRawData)
 	if err != nil {
 		return false, err
 	}
@@ -62,8 +67,6 @@ func (inst *ZSync) Lookup() (updateAvailable bool, err error) {
 }
 
 func (inst *ZSync) Download() (output string, err error) {
-	localFilename := inst.seed.Path
-	referencePath := inst.url
 	output = filepath.Dir(inst.seed.Path) + "/" + inst.updateControl.FileName
 
 	fs := &zsync.BasicSummary{
@@ -74,15 +77,37 @@ func (inst *ZSync) Download() (output string, err error) {
 		FileSize:       inst.updateControl.FileLength,
 	}
 
-	rsync, err := zsync.MakeRSync(
-		localFilename,
-		referencePath,
-		output,
-		fs,
-	)
-
+	inputFile, err := os.Open(inst.seed.Path)
 	if err != nil {
 		return
+	}
+
+	patchedFile, err := os.OpenFile(output, os.O_RDWR|os.O_CREATE, 0755)
+	if err != nil {
+		return
+	}
+
+	resolver := blocksources.MakeFileSizedBlockResolver(
+		uint64(fs.GetBlockSize()),
+		fs.GetFileSize(),
+	)
+
+	rsync := &zsync.RSync{
+		Input:  inputFile,
+		Output: patchedFile,
+		Source: blocksources.NewHttpBlockSource(
+			inst.resolveUrl(),
+			1,
+			resolver,
+			&filechecksum.HashVerifier{
+				Hash:                md4.New(),
+				BlockSize:           fs.GetBlockSize(),
+				BlockChecksumGetter: fs,
+				FinalChunkLen:       inst.updateControl.HashLengths.StrongCheckSumBytes,
+			},
+		),
+		Summary: fs,
+		OnClose: nil,
 	}
 
 	err = rsync.Patch()

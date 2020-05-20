@@ -34,7 +34,7 @@ type ReadSeekerAt interface {
 }
 
 /*
-RSync is an object designed to make the standard use-case for gosync as
+RSync is an object designed to make the standard use-case for zsync as
 easy as possible.
 
 To this end, it hides away many low level choices by default, and makes some
