@@ -23,22 +23,27 @@ func NewDirectUpdater(url *string, seed *appimage.AppImage) (*Direct, error) {
 	}, nil
 }
 
-func (d Direct) Method() string {
+func (d *Direct) Method() string {
 	return "direct"
 }
 
-func (d Direct) Lookup() (updateAvailable bool, err error) {
-	return true, nil
+func (d *Direct) Lookup() (updateAvailable bool, err error) {
+	outputFile := d.getOutputFileName()
+	if d.seed.Path == outputFile {
+		return false, nil
+	} else {
+		return true, nil
+	}
 }
 
-func (d Direct) Download() (output string, err error) {
+func (d *Direct) Download() (output string, err error) {
 	output = d.getOutputFileName()
 	err = downloadFile(output, d.url)
 
 	return
 }
 
-func (d Direct) getOutputFileName() string {
+func (d *Direct) getOutputFileName() string {
 	urlLastPartStart := strings.LastIndex(d.url, "/")
 	if urlLastPartStart == -1 {
 		urlLastPartStart = 0

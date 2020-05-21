@@ -38,5 +38,9 @@ func NewUpdateForUpdateString(updateInfoString string, appImage appimage.AppImag
 		return updaters.NewGitHubDirectUpdater(&updateInfoString, &appImage)
 	}
 
+	if strings.HasPrefix(updateInfoString, "ocs-v1-appimagehub-direct") {
+		return updaters.NewOCSAppImageHub(&updateInfoString, &appImage)
+	}
+
 	return nil, fmt.Errorf("Invalid updated information: ", updateInfoString)
 }
