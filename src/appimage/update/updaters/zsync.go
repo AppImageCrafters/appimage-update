@@ -6,7 +6,6 @@ import (
 	"appimage-update/src/zsync/blocksources"
 	"appimage-update/src/zsync/control"
 	"appimage-update/src/zsync/filechecksum"
-	"bufio"
 	"bytes"
 	"fmt"
 	"github.com/schollz/progressbar/v3"
@@ -131,7 +130,15 @@ func (inst *ZSync) resolveUrl() string {
 }
 
 func getZsyncRawData(url string) ([]byte, error) {
-	resp, err := http.Get(url)
+	client := &http.Client{}
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	req.Header.Set("User-Agent", "appimage-update-go/1.0")
+
+	resp, err := client.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -139,13 +146,11 @@ func getZsyncRawData(url string) ([]byte, error) {
 
 	bar := progressbar.DefaultBytes(
 		resp.ContentLength,
-		"Downloading zsync file: "+url,
+		"Downloading zsync file: ",
 	)
 
 	var buf bytes.Buffer
-	bufWriter := bufio.NewWriter(&buf)
-
-	_, err = io.Copy(io.MultiWriter(bufWriter, bar), resp.Body)
+	_, err = io.Copy(io.MultiWriter(&buf, bar), resp.Body)
 
 	if err != nil {
 		return nil, err

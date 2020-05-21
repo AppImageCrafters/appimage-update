@@ -42,5 +42,9 @@ func NewUpdateForUpdateString(updateInfoString string, appImage appimage.AppImag
 		return updaters.NewOCSAppImageHubDirect(&updateInfoString, &appImage)
 	}
 
+	if strings.HasPrefix(updateInfoString, "ocs-v1-appimagehub-zsync") {
+		return updaters.NewOCSAppImageHubZSync(&updateInfoString, &appImage)
+	}
+
 	return nil, fmt.Errorf("Invalid updated information: ", updateInfoString)
 }
