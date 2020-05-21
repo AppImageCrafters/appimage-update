@@ -13,7 +13,7 @@ import (
 	"strings"
 )
 
-type OCSAppImageHub struct {
+type OCSAppImageHubDirect struct {
 	direct Direct
 
 	apiV1Url  string
@@ -21,14 +21,14 @@ type OCSAppImageHub struct {
 	fileName  string
 }
 
-func NewOCSAppImageHub(updateInfoString *string, target *appimage.AppImage) (*OCSAppImageHub, error) {
+func NewOCSAppImageHubDirect(updateInfoString *string, target *appimage.AppImage) (*OCSAppImageHubDirect, error) {
 	parts := strings.Split(*updateInfoString, "|")
 
 	if len(parts) != 4 {
-		return nil, fmt.Errorf("Invalid OCSAppImageHub update instance. Expected: ocs-v1-appimagehub-direct|<api url>|<product id>|<file name>")
+		return nil, fmt.Errorf("Invalid OCSAppImageHubDirect update instance. Expected: ocs-v1-appimagehub-direct|<api url>|<product id>|<file name>")
 	}
 
-	instance := OCSAppImageHub{
+	instance := OCSAppImageHubDirect{
 		direct: Direct{
 			seed: *target,
 		},
@@ -41,11 +41,11 @@ func NewOCSAppImageHub(updateInfoString *string, target *appimage.AppImage) (*OC
 	return &instance, nil
 }
 
-func (O *OCSAppImageHub) Method() string {
+func (O *OCSAppImageHubDirect) Method() string {
 	return "ocs-v1-appimagehub-direct"
 }
 
-func (O *OCSAppImageHub) Lookup() (updateAvailable bool, err error) {
+func (O *OCSAppImageHubDirect) Lookup() (updateAvailable bool, err error) {
 	url := fmt.Sprint("https://", O.apiV1Url, "/content/data/", O.productId)
 	data, err := getContentData(url)
 	if err != nil {
@@ -62,7 +62,7 @@ func (O *OCSAppImageHub) Lookup() (updateAvailable bool, err error) {
 	return O.direct.Lookup()
 }
 
-func (O *OCSAppImageHub) resolveDownloadUrl(doc *etree.Document) string {
+func (O *OCSAppImageHubDirect) resolveDownloadUrl(doc *etree.Document) string {
 	downloadIdx := 1
 	for true {
 		downloadNameTag := fmt.Sprintf("//downloadname%d", downloadIdx)
@@ -83,7 +83,7 @@ func (O *OCSAppImageHub) resolveDownloadUrl(doc *etree.Document) string {
 	return ""
 }
 
-func (O *OCSAppImageHub) Download() (output string, err error) {
+func (O *OCSAppImageHubDirect) Download() (output string, err error) {
 	return O.direct.Download()
 }
 
