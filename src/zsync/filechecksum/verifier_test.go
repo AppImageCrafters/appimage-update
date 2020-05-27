@@ -15,11 +15,16 @@ func (d SingleBlockSource) GetStrongChecksumForBlock(blockID int) []byte {
 
 func TestBlockEqualsItself(t *testing.T) {
 	data := []byte("fooooo")
+	if len(data) < int(16) {
+		zeroFilledBlock := make([]byte, 16-uint(len(data)))
+		data = append(data, zeroFilledBlock...)
+	}
 
 	h := HashVerifier{
 		Hash:                md5.New(),
 		BlockSize:           uint(len(data)),
 		BlockChecksumGetter: SingleBlockSource(data),
+		FinalChunkLen:       16,
 	}
 
 	if !h.VerifyBlockRange(0, data) {
@@ -45,11 +50,16 @@ func (d FourByteBlockSource) GetStrongChecksumForBlock(blockID int) []byte {
 
 func TestSplitBlocksEqualThemselves(t *testing.T) {
 	data := []byte("foooBaar")
+	if len(data) < int(16) {
+		zeroFilledBlock := make([]byte, 16-uint(len(data)))
+		data = append(data, zeroFilledBlock...)
+	}
 
 	h := HashVerifier{
 		Hash:                md5.New(),
 		BlockSize:           uint(4),
 		BlockChecksumGetter: FourByteBlockSource(data),
+		FinalChunkLen:       16,
 	}
 
 	if !h.VerifyBlockRange(0, data) {
@@ -62,8 +72,9 @@ func TestPartialBlock(t *testing.T) {
 
 	h := HashVerifier{
 		Hash:                md5.New(),
-		BlockSize:           uint(4),
+		BlockSize:           uint(2),
 		BlockChecksumGetter: SingleBlockSource(data),
+		FinalChunkLen:       16,
 	}
 
 	if !h.VerifyBlockRange(0, data) {

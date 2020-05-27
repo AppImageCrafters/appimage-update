@@ -117,6 +117,7 @@ func Example_httpBlockSource() {
 				Hash:                md5.New(),
 				BlockSize:           fs.GetBlockSize(),
 				BlockChecksumGetter: fs,
+				FinalChunkLen:       16,
 			},
 		),
 		Summary: fs,
