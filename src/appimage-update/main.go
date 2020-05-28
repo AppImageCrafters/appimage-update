@@ -34,10 +34,9 @@ func main() {
 		updateMethod, err := update.NewUpdaterFor(&target)
 		if err != nil {
 			fmt.Println(err.Error())
-			// continue
+		} else {
+			tryUpdate(target, updateMethod)
 		}
-
-		tryUpdate(target, updateMethod)
 	}
 }
 

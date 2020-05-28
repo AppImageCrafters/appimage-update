@@ -81,6 +81,5 @@ func (r *Rollsum32Base) Size() int {
 
 // Puts the sum into b. Avoids allocation. b must have length >= 4
 func (r *Rollsum32Base) GetSum(b []byte) {
-	value := uint32((r.a & FULL_BYTES_16) + ((r.b & FULL_BYTES_16) << 16))
-	binary.LittleEndian.PutUint32(b, value)
+	binary.BigEndian.PutUint16(b[2:], uint16(r.b))
 }

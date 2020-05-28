@@ -139,6 +139,7 @@ func (c *Comparer) startFindMatchingBlocks_int(
 			strong.Reset()
 			strong.Write(block)
 			strongSum = strong.Sum(strongSum)
+			strongSum = strongSum[:4]
 			strongList := reference.FindStrongChecksum2(strongSum, weakMatchList)
 
 			// clear the slice

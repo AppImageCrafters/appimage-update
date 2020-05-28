@@ -52,6 +52,11 @@ func LoadChecksumsFromReader(
 
 		if n == weakHashSize {
 			temp.ChunkOffset = offset
+			if len(weakBuffer) < 4 {
+				newWeakBuffer := make([]byte, 4)
+				copy(newWeakBuffer[2:], weakBuffer)
+				weakBuffer = newWeakBuffer
+			}
 			temp.WeakChecksum = weakBuffer
 		} else if n == 0 && err == io.EOF {
 			break

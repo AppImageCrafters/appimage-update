@@ -7,18 +7,19 @@ if needed.
 package filechecksum
 
 import (
+	"appimage-update/src/zsync/rollsum"
 	"crypto/md5"
+	"golang.org/x/crypto/md4"
 	"hash"
 	"io"
 
 	"appimage-update/src/zsync/chunks"
-	"appimage-update/src/zsync/rollsum"
 )
 
 // Rsync swapped to this after version 30
 // this is a factory function, because we don't actually want to share hash state
 var DefaultStrongHashGenerator = func() hash.Hash {
-	return md5.New()
+	return md4.New()
 }
 
 // We provide an overall hash of individual files
@@ -31,7 +32,7 @@ func NewFileChecksumGenerator(blocksize uint) *FileChecksumGenerator {
 	return &FileChecksumGenerator{
 		BlockSize:       blocksize,
 		WeakRollingHash: rollsum.NewRollsum32Base(blocksize),
-		//WeakRollingHash:  rollsum.NewRollsum16Base(blocksize),
+		// WeakRollingHash:  rollsum.NewRollsum16Base(blocksize),
 		StrongHash:       DefaultStrongHashGenerator(),
 		FileChecksumHash: DefaultFileHashGenerator(),
 	}
