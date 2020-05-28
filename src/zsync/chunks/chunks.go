@@ -56,12 +56,7 @@ func LoadChecksumsFromReaderLegacy(
 
 		if n == weakHashSize {
 			temp.ChunkOffset = offset
-			if len(weakBuffer) < 4 {
-				newWeakBuffer := make([]byte, 4)
-				copy(newWeakBuffer[2:], weakBuffer)
-				weakBuffer = newWeakBuffer
-			}
-			temp.WeakChecksum = weakBuffer
+			temp.WeakChecksum = TransformToInternalRepresentation(weakBuffer)
 		} else if n == 0 && err == io.EOF {
 			break
 		} else {
@@ -86,6 +81,18 @@ func LoadChecksumsFromReaderLegacy(
 	}
 
 	return result, nil
+}
+
+// Required for zsync legacy support
+func TransformToInternalRepresentation(inWeakBuffer []byte) []byte {
+	weakBuffer := make([]byte, 4)
+
+	// reverse bytes order
+	for i, c := range inWeakBuffer {
+		weakBuffer[3-i] = c
+	}
+
+	return weakBuffer
 }
 
 // satisfies filechecksum.ChecksumLookup

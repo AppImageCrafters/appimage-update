@@ -184,7 +184,9 @@ func readChecksumIndex(dataSlice []byte, header ControlHeader) (i *index.Checksu
 	}
 
 	checksumLookup = chunks.StrongChecksumGetter(readChunks)
-	i = index.MakeChecksumIndex(readChunks)
+	i = index.MakeChecksumIndex(readChunks,
+		header.HashLengths.WeakCheckSumBytes,
+		header.HashLengths.StrongCheckSumBytes)
 	blockCount = uint(len(readChunks))
 	return
 }

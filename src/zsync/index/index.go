@@ -45,14 +45,19 @@ type ChecksumIndex struct {
 	MaxStrongLength     int
 	AverageStrongLength float32
 	Count               int
+
+	WeakChecksumSize   uint
+	StrongChecksumSize uint
 }
 
 // Builds an index in which chunks can be found, with their corresponding offsets
 // We use this for the
-func MakeChecksumIndex(checksums []chunks.ChunkChecksum) *ChecksumIndex {
+func MakeChecksumIndex(checksums []chunks.ChunkChecksum, weakChecksumSize uint, strongChecksumSize uint) *ChecksumIndex {
 	n := &ChecksumIndex{
 		BlockCount:         len(checksums),
 		weakChecksumLookup: make([]map[uint32]StrongChecksumList, 256),
+		WeakChecksumSize:   weakChecksumSize,
+		StrongChecksumSize: strongChecksumSize,
 	}
 
 	for _, chunk := range checksums {
@@ -100,6 +105,8 @@ func (index *ChecksumIndex) WeakCount() int {
 }
 
 func (index *ChecksumIndex) FindWeakChecksumInIndex(weak []byte) StrongChecksumList {
+	index.TruncWeakChecksum(weak)
+
 	x := binary.LittleEndian.Uint32(weak)
 	if index.weakChecksumLookup[x&255] != nil {
 		if v, ok := index.weakChecksumLookup[x&255][x]; ok {
@@ -107,6 +114,16 @@ func (index *ChecksumIndex) FindWeakChecksumInIndex(weak []byte) StrongChecksumL
 		}
 	}
 	return nil
+}
+
+// support smaller weak checksums
+func (index *ChecksumIndex) TruncWeakChecksum(weak []byte) {
+	weakLen := uint(len(weak))
+	if weakLen > index.WeakChecksumSize {
+		for i := uint(0); i < (weakLen - index.WeakChecksumSize); i++ {
+			weak[i] = 0
+		}
+	}
 }
 
 func (index *ChecksumIndex) FindWeakChecksum2(chk []byte) interface{} {
