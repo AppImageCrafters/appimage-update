@@ -144,6 +144,10 @@ func getZsyncRawData(url string) ([]byte, error) {
 	}
 	defer resp.Body.Close()
 
+	if resp.StatusCode < 200 || resp.StatusCode > 299 {
+		return nil, fmt.Errorf("Zsync file download failed: %d", resp.StatusCode)
+	}
+
 	bar := progressbar.DefaultBytes(
 		resp.ContentLength,
 		"Downloading zsync file: ",
