@@ -144,23 +144,37 @@ func (s StrongChecksumList) Less(i, j int) bool {
 	return bytes.Compare(s[i].StrongChecksum, s[j].StrongChecksum) == -1
 }
 
+// Assumes that if a is prefix of b or vice versa they are equal
+// this is a workaround for control files with partial checksums
+func (s StrongChecksumList) CompareStrongChecksums(a []byte, b []byte) int {
+	aSize := len(a)
+	bSize := len(b)
+
+	if aSize < bSize {
+		b = b[:aSize]
+	} else {
+		a = a[:bSize]
+	}
+
+	return bytes.Compare(a, b)
+}
+
 func (s StrongChecksumList) FindStrongChecksum(strong []byte) (result []chunks.ChunkChecksum) {
 	n := len(s)
-
 	// average length is 1, so fast path comparison
 	if n == 1 {
-		if bytes.Compare(s[0].StrongChecksum, strong) == 0 {
+		if s.CompareStrongChecksums(s[0].StrongChecksum, strong) == 0 {
 			return s
 		} else {
 			return nil
 		}
 	}
 
-	// find the first possible occurance
+	// find the first possible occurrence
 	first_gte_checksum := sort.Search(
 		n,
 		func(i int) bool {
-			return bytes.Compare(s[i].StrongChecksum, strong) >= 0
+			return s.CompareStrongChecksums(s[i].StrongChecksum, strong) >= 0
 		},
 	)
 
@@ -170,13 +184,13 @@ func (s StrongChecksumList) FindStrongChecksum(strong []byte) (result []chunks.C
 	}
 
 	// Somewhere in the middle, but the next one didn't match
-	if bytes.Compare(s[first_gte_checksum].StrongChecksum, strong) != 0 {
+	if s.CompareStrongChecksums(s[first_gte_checksum].StrongChecksum, strong) != 0 {
 		return nil
 	}
 
 	end := first_gte_checksum + 1
 	for end < n {
-		if bytes.Compare(s[end].StrongChecksum, strong) == 0 {
+		if s.CompareStrongChecksums(s[end].StrongChecksum, strong) == 0 {
 			end += 1
 		} else {
 			break
