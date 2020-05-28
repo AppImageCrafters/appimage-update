@@ -35,7 +35,11 @@ func (chunk ChunkChecksum) Match(other ChunkChecksum) bool {
 var ErrPartialChecksum = errors.New("Reader length was not a multiple of the checksums")
 
 // Loads chunks from a reader, assuming alternating weak then strong hashes
-func LoadChecksumsFromReader(
+// This function attempts to be compatible with the original zsync implementation therefore the following assumptions
+// are made:
+// - weak checksums are stored in Little Endian notation
+// - only first <strongHashSize> bytes of the strong checksum are provided
+func LoadChecksumsFromReaderLegacy(
 	r io.Reader,
 	weakHashSize int,
 	strongHashSize int,

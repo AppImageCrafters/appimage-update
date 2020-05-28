@@ -162,7 +162,7 @@ func TestChecksumBlocksTheSame(t *testing.T) {
 		)
 	}
 
-	results, err := chunks.LoadChecksumsFromReader(output, weakSize, strongSize)
+	results, err := chunks.LoadChecksumsFromReaderLegacy(output, weakSize, strongSize)
 
 	if err != nil {
 		t.Fatal(err)
@@ -213,8 +213,8 @@ func TestPrependedBlocks(t *testing.T) {
 	}
 
 	weaksize, strongSize := checksum.GetChecksumSizes()
-	sums1, _ := chunks.LoadChecksumsFromReader(output1, weaksize, strongSize)
-	sums2, _ := chunks.LoadChecksumsFromReader(output2, weaksize, strongSize)
+	sums1, _ := chunks.LoadChecksumsFromReaderLegacy(output1, weaksize, strongSize)
+	sums2, _ := chunks.LoadChecksumsFromReaderLegacy(output2, weaksize, strongSize)
 
 	if len(sums1) != len(sums2) {
 		t.Fatalf("Checksum lengths differ %v vs %v", len(sums1), len(sums2))
@@ -249,7 +249,7 @@ func TestInvalidReaderLength_Weak(t *testing.T) {
 	)
 
 	ws, ss := checksum.GetChecksumSizes()
-	r, err := chunks.LoadChecksumsFromReader(file1, ws, ss)
+	r, err := chunks.LoadChecksumsFromReaderLegacy(file1, ws, ss)
 
 	if r != nil || err != chunks.ErrPartialChecksum {
 		t.Error("Expected partial checksum error")
@@ -269,7 +269,7 @@ func TestInvalidReaderLength_Strong(t *testing.T) {
 	)
 
 	ws, ss := checksum.GetChecksumSizes()
-	r, err := chunks.LoadChecksumsFromReader(file1, ws, ss)
+	r, err := chunks.LoadChecksumsFromReaderLegacy(file1, ws, ss)
 
 	if r != nil || err != chunks.ErrPartialChecksum {
 		t.Error("Expected partial checksum error")
@@ -291,7 +291,7 @@ func ExampleFileChecksumGenerator_LoadChecksumsFromReader() {
 	defer file1.Close()
 
 	ws, ss := checksum.GetChecksumSizes()
-	checksums, err := chunks.LoadChecksumsFromReader(file1, ws, ss)
+	checksums, err := chunks.LoadChecksumsFromReaderLegacy(file1, ws, ss)
 
 	if err != nil {
 		return

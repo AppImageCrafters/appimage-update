@@ -173,7 +173,7 @@ func readChecksumIndex(dataSlice []byte, header ControlHeader) (i *index.Checksu
 	err error) {
 
 	reader := bytes.NewReader(dataSlice)
-	readChunks, err := chunks.LoadChecksumsFromReader(
+	readChunks, err := chunks.LoadChecksumsFromReaderLegacy(
 		reader,
 		int(header.HashLengths.WeakCheckSumBytes),
 		int(header.HashLengths.StrongCheckSumBytes),

@@ -33,7 +33,7 @@ func BuildChecksumIndex(check *filechecksum.FileChecksumGenerator, r io.Reader) 
 
 	weakSize := check.WeakRollingHash.Size()
 	strongSize := check.GetStrongHash().Size()
-	readChunks, err := chunks.LoadChecksumsFromReader(b, weakSize, strongSize)
+	readChunks, err := chunks.LoadChecksumsFromReaderLegacy(b, weakSize, strongSize)
 
 	if err != nil {
 		return
