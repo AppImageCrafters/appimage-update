@@ -95,6 +95,7 @@ func (rsync *RSync) Patch() (err error) {
 	sectionSize := rsync.Summary.GetFileSize() / numMatchers
 	sectionSize += int64(blockSize) - (sectionSize % int64(blockSize))
 
+	fmt.Println("Looking for reusable blocks")
 	merger := &comparer.MatchMerger{}
 
 	for i := int64(0); i < numMatchers; i++ {
@@ -120,6 +121,9 @@ func (rsync *RSync) Patch() (err error) {
 
 	mergedBlocks := merger.GetMergedBlocks()
 	missing := mergedBlocks.GetMissingBlocks(rsync.Summary.GetBlockCount() - 1)
+
+	fmt.Println("Blocks to reuse:", len(mergedBlocks))
+	fmt.Println("Blocks to download:", len(missing))
 
 	bar := progressbar.DefaultBytes(
 		rsync.Summary.GetFileSize(),
