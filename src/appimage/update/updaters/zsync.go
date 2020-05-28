@@ -116,6 +116,13 @@ func (inst *ZSync) Download() (output string, err error) {
 	}
 
 	rsync.Close()
+
+	err = inst.validateDownload(output)
+	if err != nil {
+		os.Remove(output)
+
+		return
+	}
 	return output, nil
 }
 
@@ -127,6 +134,17 @@ func (inst *ZSync) resolveUrl() string {
 
 	urlPrefixEnd := strings.LastIndex(inst.url, "/")
 	return inst.url[:urlPrefixEnd] + "/" + inst.updateControl.URL
+}
+
+func (inst *ZSync) validateDownload(output string) error {
+	appImage := appimage.AppImage{output}
+	if appImage.GetSHA1() != inst.updateControl.SHA1 {
+		return fmt.Errorf("downloaded file checksums don't match")
+	} else {
+		fmt.Println("File checksum verified.")
+	}
+
+	return nil
 }
 
 func getZsyncRawData(url string) ([]byte, error) {
