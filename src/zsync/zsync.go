@@ -1,7 +1,6 @@
 package zsync
 
 import (
-	"appimage-update/src/zsync/blocksources"
 	"appimage-update/src/zsync/chunks"
 	"appimage-update/src/zsync/control"
 	"appimage-update/src/zsync/rollsum"
@@ -16,9 +15,14 @@ import (
 	"strings"
 )
 
+type ReadSeeker interface {
+	Read(b []byte) (n int, err error)
+	Seek(offset int64, whence int) (int64, error)
+}
+
 type ChunkInfo struct {
 	size         int64
-	source       blocksources.ReadSeeker
+	source       ReadSeeker
 	sourceOffset int64
 	targetOffset int64
 }
@@ -328,7 +332,7 @@ func (syncData *SyncData) IdentifyMissingChunks(matchingChunks []ChunkInfo) (mis
 	return
 }
 
-func readChunk(local blocksources.ReadSeeker, offset int64, requiredBytes int64) (blockData []byte, err error) {
+func readChunk(local ReadSeeker, offset int64, requiredBytes int64) (blockData []byte, err error) {
 	_, err = local.Seek(offset, 0)
 	if err != nil {
 		return nil, err

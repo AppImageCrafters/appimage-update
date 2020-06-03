@@ -299,7 +299,7 @@ func ExampleFileChecksumGenerator_LoadChecksumsFromReader() {
 
 	// Make an index that we can use against our local
 	// checksums
-	i := index.MakeChecksumIndex(checksums)
+	i := index.MakeChecksumIndex(checksums, 4, 16)
 
 	// example checksum from a local file
 	// look for the chunk in the index
