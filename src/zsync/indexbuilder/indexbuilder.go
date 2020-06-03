@@ -39,7 +39,7 @@ func BuildChecksumIndex(check *filechecksum.FileChecksumGenerator, r io.Reader) 
 		return
 	}
 
-	i = index.MakeChecksumIndex(readChunks)
+	i = index.MakeChecksumIndex(readChunks, 4, 16)
 	lookup = chunks.StrongChecksumGetter(readChunks)
 
 	return

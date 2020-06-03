@@ -56,7 +56,7 @@ func tryUpdate(target string, updateMethod update.Updater) {
 
 	result, err := updateMethod.Download()
 	if err != nil {
-		fmt.Println(err.Error())
+		fmt.Println("Error: ", err.Error())
 		return
 	}
 
