@@ -26,6 +26,27 @@ func TestMain(m *testing.M) {
 var dataDir string = "/tmp/appimage-update"
 var serverUrl string = ""
 
+func TestSyncChunksDisplaced(t *testing.T) {
+	zsyncControl, _ := getControl()
+	zsyncControl.URL = serverUrl + "file"
+
+	local, err := os.Open(dataDir + "/file_displaced")
+	if err != nil {
+		return
+	}
+	defer local.Close()
+
+	output := bytes.Buffer{}
+
+	err = Sync(local, &output, *zsyncControl)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	expected, _ := ioutil.ReadFile(dataDir + "/file")
+	assert.Equal(t, expected, output.Bytes())
+}
+
 func TestSync1stChunkChanged(t *testing.T) {
 	zsyncControl, _ := getControl()
 	zsyncControl.URL = serverUrl + "file"
@@ -110,6 +131,7 @@ func setup() {
 	dataDir := generateTestDataDir()
 	serve(dataDir)
 }
+
 func serve(dataDir string) {
 	srv := &http.Server{Addr: ":8080"}
 	serverUrl = "http://localhost:8080/"
@@ -126,20 +148,21 @@ func generateTestDataDir() string {
 
 	rand.Seed(time.Now().UnixNano())
 
-	_ = generateFile([]byte("0123456789"), err, dataDir+"/file")
+	_ = generateFile([]byte("0123456789"), 2048*2+60, 0, dataDir+"/file")
+	_ = generateFile([]byte("0123456789"), 2048*2+70, 1, dataDir+"/file_displaced")
 	makeZsyncFile(dataDir+"/file", err)
 
-	_ = generateFile([]byte("x123456789"), err, dataDir+"/1st_chunk_changed")
-	_ = generateFile([]byte("0x23456789"), err, dataDir+"/2nd_chunk_changed")
-	_ = generateFile([]byte("01x3456789"), err, dataDir+"/3rd_chunk_changed")
+	_ = generateFile([]byte("x123456789"), 2048*2+60, 0, dataDir+"/1st_chunk_changed")
+	_ = generateFile([]byte("0x23456789"), 2048*2+60, 0, dataDir+"/2nd_chunk_changed")
+	_ = generateFile([]byte("01x3456789"), 2048*2+60, 0, dataDir+"/3rd_chunk_changed")
 
 	return dataDir
 }
 
-func generateFile(letterRunes []byte, err error, filePath string) error {
-	baseString := make([]byte, 2048*2+60)
+func generateFile(chars []byte, size int, offset int, filePath string) (err error) {
+	baseString := make([]byte, size)
 	for i := range baseString {
-		baseString[i] = letterRunes[(i/2048)%9]
+		baseString[i] = chars[((offset+i)/2048)%len(chars)]
 	}
 
 	err = writeStringToFile(filePath, baseString)
