@@ -4,15 +4,14 @@ import (
 	"appimage-update/src/zsync/chunks"
 	"appimage-update/src/zsync/control"
 	"appimage-update/src/zsync/rollsum"
+	"appimage-update/src/zsync/sources"
 	"fmt"
 	"github.com/jinzhu/copier"
 	"golang.org/x/crypto/md4"
 	"hash"
 	"io"
-	"net/http"
 	"os"
 	"sort"
-	"strings"
 )
 
 type ReadSeeker interface {
@@ -34,84 +33,6 @@ type SyncData struct {
 	strongChecksumBuilder hash.Hash
 	local                 *os.File
 	output                io.Writer
-}
-
-type HttpFileSource struct {
-	url    string
-	offset int64
-	size   int64
-}
-
-func (h HttpFileSource) Read(b []byte) (n int, err error) {
-	rangedRequest, err := http.NewRequest("GET", h.url, nil)
-
-	if err != nil {
-		return 0, fmt.Errorf("Error creating request for \"%v\": %v", h.url, err)
-	}
-
-	range_start := h.offset
-	range_end := h.offset + int64(len(b)) - 1
-
-	rangeSpecifier := fmt.Sprintf("bytes=%v-%v", range_start, range_end)
-	rangedRequest.ProtoAtLeast(1, 1)
-	rangedRequest.Header.Add("Range", rangeSpecifier)
-	rangedRequest.Header.Add("Accept-Encoding", "identity")
-
-	client := &http.Client{}
-	rangedResponse, err := client.Do(rangedRequest)
-
-	if err != nil {
-		return 0, fmt.Errorf("Error executing request for \"%v\": %v", h.url, err)
-	}
-
-	defer rangedResponse.Body.Close()
-
-	if rangedResponse.StatusCode == 404 {
-		return 0, fmt.Errorf("url not found")
-	} else if rangedResponse.StatusCode != 206 {
-		return 0, fmt.Errorf("ranged request not supported")
-	} else if strings.Contains(
-		rangedResponse.Header.Get("Content-Encoding"),
-		"gzip",
-	) {
-		return 0, fmt.Errorf("response from server was GZiped")
-	} else {
-		bytesRead, err := io.ReadFull(rangedResponse.Body, b)
-
-		if err != nil {
-			err = fmt.Errorf(
-				"Failed to read response body for %v (%v-%v): %v",
-				h.url, range_start, range_end,
-				err,
-			)
-		}
-
-		if bytesRead != len(b) {
-			err = fmt.Errorf(
-				"Unexpected response length %v (%v): %v",
-				h.url,
-				bytesRead,
-				len(b),
-			)
-		}
-
-		return bytesRead, nil
-	}
-}
-
-func (h HttpFileSource) Seek(offset int64, whence int) (int64, error) {
-	switch whence {
-	case 0:
-		h.offset = offset
-	case 1:
-		h.offset += offset
-	case 2:
-		h.offset = h.size + offset
-	default:
-		return -1, fmt.Errorf("Unknown whence value: %d", whence)
-	}
-
-	return offset, nil
 }
 
 func Sync(local *os.File, output io.Writer, control control.Control) (err error) {
@@ -301,7 +222,7 @@ func (syncData *SyncData) searchMatchingChunks(blockData []byte) []chunks.ChunkC
 }
 
 func (syncData *SyncData) IdentifyMissingChunks(matchingChunks []ChunkInfo) (missing []ChunkInfo) {
-	missingChunksSource := HttpFileSource{syncData.URL, 0, syncData.FileLength}
+	missingChunksSource := sources.HttpFileSource{syncData.URL, 0, syncData.FileLength}
 
 	offset := int64(0)
 	for _, chunk := range matchingChunks {
