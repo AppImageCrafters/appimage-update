@@ -105,7 +105,7 @@ func (s StrongChecksumGetter) GetStrongChecksumForBlock(blockID int) []byte {
 
 type ChunkInfo struct {
 	Size         int64
-	Source       chunks.Source
+	Source       sources.Source
 	SourceOffset int64
 	TargetOffset int64
 }

@@ -4,7 +4,7 @@ import (
 	"appimage-update/src/zsync/chunks"
 	"appimage-update/src/zsync/control"
 	"appimage-update/src/zsync/rollsum"
-	chunks2 "appimage-update/src/zsync/sources"
+	"appimage-update/src/zsync/sources"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
@@ -49,13 +49,13 @@ func Sync(local *os.File, output io.Writer, control control.Control) (err error)
 func (syncData *SyncData) mergeChunks(allChunks []chunks.ChunkInfo, output io.Writer) error {
 	outputSHA1 := sha1.New()
 
-	bar := progressbar.DefaultBytes(
+	progress := progressbar.DefaultBytes(
 		syncData.FileLength,
 		"Merging chunks: ",
 	)
 
 	for _, chunk := range allChunks {
-		chunkData, err := chunks2.ReadChunk(chunk.Source, chunk.SourceOffset, chunk.Size)
+		chunkData, err := sources.ReadChunk(chunk.Source, chunk.SourceOffset, chunk.Size)
 		if err != nil {
 			return err
 		}
@@ -65,7 +65,7 @@ func (syncData *SyncData) mergeChunks(allChunks []chunks.ChunkInfo, output io.Wr
 		}
 
 		outputSHA1.Write(chunkData)
-		_, _ = bar.Write(chunkData)
+		_, _ = progress.Write(chunkData)
 	}
 
 	outputSHA1Sum := hex.EncodeToString(outputSHA1.Sum(nil))
@@ -126,7 +126,7 @@ func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []chunks
 			chunkSize = sourceFileSize - offset
 		}
 
-		data, err := chunks2.ReadChunk(syncData.Local, offset, chunkSize)
+		data, err := sources.ReadChunk(syncData.Local, offset, chunkSize)
 		if err != nil {
 			return nil, err
 		}
@@ -206,7 +206,7 @@ func (syncData *SyncData) searchMatchingChunks(blockData []byte) []chunks.ChunkC
 
 func (syncData *SyncData) AddMissingChunks(matchingChunks []chunks.ChunkInfo) (missing []chunks.ChunkInfo) {
 	sortChunksByTargetOffset(matchingChunks)
-	missingChunksSource := chunks2.HttpFileSource{syncData.URL, 0, syncData.FileLength}
+	missingChunksSource := sources.HttpFileSource{syncData.URL, 0, syncData.FileLength}
 
 	offset := int64(0)
 	for _, chunk := range matchingChunks {
