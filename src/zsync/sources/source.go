@@ -17,7 +17,10 @@ func ReadChunk(source Source, offset int64, requiredBytes int64) (blockData []by
 
 	reader := io.LimitedReader{source, requiredBytes}
 	blockData = make([]byte, requiredBytes)
-	_, err = reader.Read(blockData)
+	n, err := reader.Read(blockData)
+	if int64(n) == requiredBytes {
+		return blockData, nil
+	}
 
 	if err != nil {
 		return nil, err

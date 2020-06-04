@@ -36,14 +36,14 @@ func Sync(local *os.File, output io.Writer, control control.Control) (err error)
 
 	reusableChunks, err := syncData.SearchReusableChunks()
 	if err != nil {
-		return err
+		return
 	}
 
 	syncData.printChunksSummary(reusableChunks)
 	allChunks := syncData.AddMissingChunks(reusableChunks)
 
 	err = syncData.mergeChunks(allChunks, output)
-	return nil
+	return
 }
 
 func (syncData *SyncData) mergeChunks(allChunks []chunks.ChunkInfo, output io.Writer) error {
@@ -55,17 +55,21 @@ func (syncData *SyncData) mergeChunks(allChunks []chunks.ChunkInfo, output io.Wr
 	)
 
 	for _, chunk := range allChunks {
-		chunkData, err := sources.ReadChunk(chunk.Source, chunk.SourceOffset, chunk.Size)
-		if err != nil {
-			return err
-		}
-		_, err = output.Write(chunkData)
+		_, err := chunk.Source.Seek(chunk.SourceOffset, 0)
 		if err != nil {
 			return err
 		}
 
-		outputSHA1.Write(chunkData)
-		_, _ = progress.Write(chunkData)
+		// request the whole chunks in advance avoid small request
+		httpFileSource, ok := chunk.Source.(*sources.HttpFileSource)
+		if ok {
+			err = httpFileSource.Request(chunk.Size)
+		}
+
+		_, err = io.CopyN(io.MultiWriter(output, outputSHA1, progress), chunk.Source, chunk.Size)
+		if err != nil {
+			return err
+		}
 	}
 
 	outputSHA1Sum := hex.EncodeToString(outputSHA1.Sum(nil))
@@ -206,7 +210,7 @@ func (syncData *SyncData) searchMatchingChunks(blockData []byte) []chunks.ChunkC
 
 func (syncData *SyncData) AddMissingChunks(matchingChunks []chunks.ChunkInfo) (missing []chunks.ChunkInfo) {
 	sortChunksByTargetOffset(matchingChunks)
-	missingChunksSource := sources.HttpFileSource{syncData.URL, 0, syncData.FileLength}
+	missingChunksSource := sources.HttpFileSource{URL: syncData.URL, Size: syncData.FileLength}
 
 	offset := int64(0)
 	for _, chunk := range matchingChunks {
