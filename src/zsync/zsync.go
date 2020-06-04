@@ -3,8 +3,8 @@ package zsync
 import (
 	"appimage-update/src/zsync/chunks"
 	"appimage-update/src/zsync/control"
+	chunks2 "appimage-update/src/zsync/reader"
 	"appimage-update/src/zsync/rollsum"
-	"appimage-update/src/zsync/sources"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
@@ -16,34 +16,22 @@ import (
 	"sort"
 )
 
-type ReadSeeker interface {
-	Read(b []byte) (n int, err error)
-	Seek(offset int64, whence int) (int64, error)
-}
-
-type ChunkInfo struct {
-	size         int64
-	source       ReadSeeker
-	sourceOffset int64
-	targetOffset int64
-}
-
 type SyncData struct {
 	control.Control
 
-	weakChecksumBuilder   hash.Hash
-	strongChecksumBuilder hash.Hash
-	local                 *os.File
-	output                io.Writer
+	WeakChecksumBuilder   hash.Hash
+	StrongChecksumBuilder hash.Hash
+	Local                 *os.File
+	Output                io.Writer
 }
 
 func Sync(local *os.File, output io.Writer, control control.Control) (err error) {
 	syncData := SyncData{
 		Control:               control,
-		weakChecksumBuilder:   rollsum.NewRollsum32(control.BlockSize),
-		strongChecksumBuilder: md4.New(),
-		local:                 local,
-		output:                output,
+		WeakChecksumBuilder:   rollsum.NewRollsum32(control.BlockSize),
+		StrongChecksumBuilder: md4.New(),
+		Local:                 local,
+		Output:                output,
 	}
 
 	matchingChunks, err := syncData.SearchLocalMatchingChunks()
@@ -54,11 +42,11 @@ func Sync(local *os.File, output io.Writer, control control.Control) (err error)
 	syncData.printChunksSummary(matchingChunks)
 	allChunks := syncData.IdentifyMissingChunks(matchingChunks)
 
-	err = mergeChunks(allChunks, output, syncData)
+	err = syncData.mergeChunks(allChunks, output)
 	return nil
 }
 
-func mergeChunks(allChunks []ChunkInfo, output io.Writer, syncData SyncData) error {
+func (syncData *SyncData) mergeChunks(allChunks []chunks.ChunkInfo, output io.Writer) error {
 	outputSHA1 := sha1.New()
 
 	bar := progressbar.DefaultBytes(
@@ -67,7 +55,7 @@ func mergeChunks(allChunks []ChunkInfo, output io.Writer, syncData SyncData) err
 	)
 
 	for _, chunk := range allChunks {
-		chunkData, err := readChunk(chunk.source, chunk.sourceOffset, chunk.size)
+		chunkData, err := readChunk(chunk.Source, chunk.SourceOffset, chunk.Size)
 		if err != nil {
 			return err
 		}
@@ -82,12 +70,12 @@ func mergeChunks(allChunks []ChunkInfo, output io.Writer, syncData SyncData) err
 
 	outputSHA1Sum := hex.EncodeToString(outputSHA1.Sum(nil))
 	if outputSHA1Sum != syncData.SHA1 {
-		return fmt.Errorf("output checksum don't match with the expected")
+		return fmt.Errorf("Output checksum don't match with the expected")
 	}
 	return nil
 }
 
-func (syncData *SyncData) SearchLocalMatchingChunks() (matchingChunks []ChunkInfo, err error) {
+func (syncData *SyncData) SearchLocalMatchingChunks() (matchingChunks []chunks.ChunkInfo, err error) {
 	matchingChunks, err = syncData.identifyAllLocalMatchingChunks(matchingChunks)
 	if err != nil {
 		return nil, err
@@ -99,18 +87,18 @@ func (syncData *SyncData) SearchLocalMatchingChunks() (matchingChunks []ChunkInf
 	return
 }
 
-func (syncData *SyncData) printChunksSummary(matchingChunks []ChunkInfo) {
+func (syncData *SyncData) printChunksSummary(matchingChunks []chunks.ChunkInfo) {
 	reusableChunksSize := int64(0)
 	for _, chunk := range matchingChunks {
-		reusableChunksSize += chunk.size
+		reusableChunksSize += chunk.Size
 	}
 	fmt.Printf("Reusable chunks found: %d %dKb (%d%%)\n",
 		len(matchingChunks), reusableChunksSize/1024, reusableChunksSize*100/syncData.FileLength)
 }
 
-func removeSmallChunks(matchingChunks []ChunkInfo, length int64) (filteredChunks []ChunkInfo) {
+func removeSmallChunks(matchingChunks []chunks.ChunkInfo, length int64) (filteredChunks []chunks.ChunkInfo) {
 	for _, chunk := range matchingChunks {
-		if chunk.size > 1024 || chunk.targetOffset+chunk.size == length {
+		if chunk.Size > 1024 || chunk.TargetOffset+chunk.Size == length {
 			filteredChunks = append(filteredChunks, chunk)
 		}
 	}
@@ -118,13 +106,13 @@ func removeSmallChunks(matchingChunks []ChunkInfo, length int64) (filteredChunks
 	return
 }
 
-func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []ChunkInfo) ([]ChunkInfo, error) {
+func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []chunks.ChunkInfo) ([]chunks.ChunkInfo, error) {
 	lookup := int64(syncData.BlockSize)
-	sourceFileSize, err := syncData.local.Seek(0, 2)
+	sourceFileSize, err := syncData.Local.Seek(0, 2)
 	if err != nil {
 		return nil, err
 	}
-	_, err = syncData.local.Seek(0, 0)
+	_, err = syncData.Local.Seek(0, 0)
 
 	progress := progressbar.DefaultBytes(
 		sourceFileSize,
@@ -138,7 +126,7 @@ func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []ChunkI
 			chunkSize = sourceFileSize - offset
 		}
 
-		data, err := readChunk(syncData.local, offset, chunkSize)
+		data, err := readChunk(syncData.Local, offset, chunkSize)
 		if err != nil {
 			return nil, err
 		}
@@ -151,16 +139,16 @@ func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []ChunkI
 		matches := syncData.searchMatchingChunks(data)
 		if matches != nil {
 			for _, match := range matches {
-				newChunk := ChunkInfo{
-					size:         chunkSize,
-					source:       syncData.local,
-					sourceOffset: offset,
-					targetOffset: int64(match.ChunkOffset * syncData.BlockSize),
+				newChunk := chunks.ChunkInfo{
+					Size:         chunkSize,
+					Source:       syncData.Local,
+					SourceOffset: offset,
+					TargetOffset: int64(match.ChunkOffset * syncData.BlockSize),
 				}
 
 				// chop zero filled chunks at the end
-				if newChunk.targetOffset+newChunk.size > syncData.FileLength {
-					newChunk.size = syncData.FileLength - newChunk.targetOffset
+				if newChunk.TargetOffset+newChunk.Size > syncData.FileLength {
+					newChunk.Size = syncData.FileLength - newChunk.TargetOffset
 				}
 				matchingChunks = append(matchingChunks, newChunk)
 			}
@@ -174,20 +162,20 @@ func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []ChunkI
 	return matchingChunks, nil
 }
 
-func removeDuplicatedChunks(matchingChunks []ChunkInfo) []ChunkInfo {
-	m := make(map[int64]ChunkInfo)
+func removeDuplicatedChunks(matchingChunks []chunks.ChunkInfo) []chunks.ChunkInfo {
+	m := make(map[int64]chunks.ChunkInfo)
 	for _, item := range matchingChunks {
-		if _, ok := m[item.targetOffset]; ok {
+		if _, ok := m[item.TargetOffset]; ok {
 			// prefer chunks with the same offset in both files
-			if item.sourceOffset == item.targetOffset {
-				m[item.targetOffset] = item
+			if item.SourceOffset == item.TargetOffset {
+				m[item.TargetOffset] = item
 			}
 		} else {
-			m[item.targetOffset] = item
+			m[item.TargetOffset] = item
 		}
 	}
 
-	var result []ChunkInfo
+	var result []chunks.ChunkInfo
 	for _, item := range m {
 		result = append(result, item)
 	}
@@ -195,20 +183,20 @@ func removeDuplicatedChunks(matchingChunks []ChunkInfo) []ChunkInfo {
 	return result
 }
 
-func sortChunksByTargetOffset(matchingChunks []ChunkInfo) {
+func sortChunksByTargetOffset(matchingChunks []chunks.ChunkInfo) {
 	sort.Slice(matchingChunks, func(i, j int) bool {
-		return matchingChunks[i].targetOffset < matchingChunks[j].targetOffset
+		return matchingChunks[i].TargetOffset < matchingChunks[j].TargetOffset
 	})
 }
 
 func (syncData *SyncData) searchMatchingChunks(blockData []byte) []chunks.ChunkChecksum {
-	syncData.weakChecksumBuilder.Write(blockData)
-	weakSum := syncData.weakChecksumBuilder.Sum(nil)
+	syncData.WeakChecksumBuilder.Write(blockData)
+	weakSum := syncData.WeakChecksumBuilder.Sum(nil)
 	weakMatches := syncData.ChecksumIndex.FindWeakChecksum2(weakSum)
 	if weakMatches != nil {
-		syncData.strongChecksumBuilder.Reset()
-		syncData.strongChecksumBuilder.Write(blockData)
-		strongSum := syncData.strongChecksumBuilder.Sum(nil)
+		syncData.StrongChecksumBuilder.Reset()
+		syncData.StrongChecksumBuilder.Write(blockData)
+		strongSum := syncData.StrongChecksumBuilder.Sum(nil)
 
 		return syncData.ChecksumIndex.FindStrongChecksum2(strongSum, weakMatches)
 	}
@@ -216,20 +204,20 @@ func (syncData *SyncData) searchMatchingChunks(blockData []byte) []chunks.ChunkC
 	return nil
 }
 
-func (syncData *SyncData) IdentifyMissingChunks(matchingChunks []ChunkInfo) (missing []ChunkInfo) {
+func (syncData *SyncData) IdentifyMissingChunks(matchingChunks []chunks.ChunkInfo) (missing []chunks.ChunkInfo) {
 	sortChunksByTargetOffset(matchingChunks)
-	missingChunksSource := sources.HttpFileSource{syncData.URL, 0, syncData.FileLength}
+	missingChunksSource := chunks2.HttpFileReader{syncData.URL, 0, syncData.FileLength}
 
 	offset := int64(0)
 	for _, chunk := range matchingChunks {
-		gapSize := chunk.targetOffset - offset
+		gapSize := chunk.TargetOffset - offset
 		if gapSize > 0 {
-			if chunk.targetOffset != offset {
-				missingChunk := ChunkInfo{
-					size:         gapSize,
-					source:       &missingChunksSource,
-					sourceOffset: offset,
-					targetOffset: offset,
+			if chunk.TargetOffset != offset {
+				missingChunk := chunks.ChunkInfo{
+					Size:         gapSize,
+					Source:       &missingChunksSource,
+					SourceOffset: offset,
+					TargetOffset: offset,
 				}
 
 				missing = append(missing, missingChunk)
@@ -238,15 +226,15 @@ func (syncData *SyncData) IdentifyMissingChunks(matchingChunks []ChunkInfo) (mis
 		}
 
 		missing = append(missing, chunk)
-		offset += chunk.size
+		offset += chunk.Size
 	}
 
 	if offset < syncData.FileLength {
-		missingChunk := ChunkInfo{
-			size:         syncData.FileLength - offset,
-			source:       &missingChunksSource,
-			sourceOffset: offset,
-			targetOffset: offset,
+		missingChunk := chunks.ChunkInfo{
+			Size:         syncData.FileLength - offset,
+			Source:       &missingChunksSource,
+			SourceOffset: offset,
+			TargetOffset: offset,
 		}
 
 		missing = append(missing, missingChunk)
@@ -255,7 +243,7 @@ func (syncData *SyncData) IdentifyMissingChunks(matchingChunks []ChunkInfo) (mis
 	return
 }
 
-func readChunk(local ReadSeeker, offset int64, requiredBytes int64) (blockData []byte, err error) {
+func readChunk(local chunks2.ReadSeeker, offset int64, requiredBytes int64) (blockData []byte, err error) {
 	_, err = local.Seek(offset, 0)
 	if err != nil {
 		return nil, err

@@ -1,4 +1,4 @@
-package sources
+package chunks
 
 import (
 	"fmt"
@@ -7,13 +7,13 @@ import (
 	"strings"
 )
 
-type HttpFileSource struct {
+type HttpFileReader struct {
 	URL    string
 	Offset int64
 	Size   int64
 }
 
-func (h HttpFileSource) Read(b []byte) (n int, err error) {
+func (h HttpFileReader) Read(b []byte) (n int, err error) {
 	rangedRequest, err := http.NewRequest("GET", h.URL, nil)
 
 	if err != nil {
@@ -70,7 +70,7 @@ func (h HttpFileSource) Read(b []byte) (n int, err error) {
 	}
 }
 
-func (h *HttpFileSource) Seek(offset int64, whence int) (int64, error) {
+func (h *HttpFileReader) Seek(offset int64, whence int) (int64, error) {
 	switch whence {
 	case 0:
 		h.Offset = offset
