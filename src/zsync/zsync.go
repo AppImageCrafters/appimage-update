@@ -55,7 +55,7 @@ func (syncData *SyncData) mergeChunks(allChunks []chunks.ChunkInfo, output io.Wr
 	)
 
 	for _, chunk := range allChunks {
-		chunkData, err := readChunk(chunk.Source, chunk.SourceOffset, chunk.Size)
+		chunkData, err := chunks2.ReadChunk(chunk.Source, chunk.SourceOffset, chunk.Size)
 		if err != nil {
 			return err
 		}
@@ -126,7 +126,7 @@ func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []chunks
 			chunkSize = sourceFileSize - offset
 		}
 
-		data, err := readChunk(syncData.Local, offset, chunkSize)
+		data, err := chunks2.ReadChunk(syncData.Local, offset, chunkSize)
 		if err != nil {
 			return nil, err
 		}
@@ -238,23 +238,6 @@ func (syncData *SyncData) AddMissingChunks(matchingChunks []chunks.ChunkInfo) (m
 		}
 
 		missing = append(missing, missingChunk)
-	}
-
-	return
-}
-
-func readChunk(local chunks2.Source, offset int64, requiredBytes int64) (blockData []byte, err error) {
-	_, err = local.Seek(offset, 0)
-	if err != nil {
-		return nil, err
-	}
-
-	reader := io.LimitedReader{local, requiredBytes}
-	blockData = make([]byte, requiredBytes)
-	_, err = reader.Read(blockData)
-
-	if err != nil {
-		return nil, err
 	}
 
 	return
