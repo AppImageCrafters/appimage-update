@@ -5,7 +5,6 @@ Since this is fairly widely used, splitting this out breaks a number of possible
 package chunks
 
 import (
-	"appimage-update/src/zsync/sources"
 	"bytes"
 	"errors"
 	"io"
@@ -105,7 +104,7 @@ func (s StrongChecksumGetter) GetStrongChecksumForBlock(blockID int) []byte {
 
 type ChunkInfo struct {
 	Size         int64
-	Source       sources.Source
+	Source       io.ReadSeeker
 	SourceOffset int64
 	TargetOffset int64
 }
