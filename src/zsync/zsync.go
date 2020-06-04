@@ -5,8 +5,10 @@ import (
 	"appimage-update/src/zsync/control"
 	"appimage-update/src/zsync/rollsum"
 	"appimage-update/src/zsync/sources"
+	"crypto/sha1"
+	"encoding/hex"
 	"fmt"
-	"github.com/jinzhu/copier"
+	"github.com/schollz/progressbar/v3"
 	"golang.org/x/crypto/md4"
 	"hash"
 	"io"
@@ -48,10 +50,21 @@ func Sync(local *os.File, output io.Writer, control control.Control) (err error)
 	if err != nil {
 		return err
 	}
-	missingChunks := syncData.IdentifyMissingChunks(matchingChunks)
 
-	allChunks := append(matchingChunks, missingChunks...)
-	sortChunksByTargetOffset(allChunks)
+	syncData.printChunksSummary(matchingChunks)
+	allChunks := syncData.IdentifyMissingChunks(matchingChunks)
+
+	err = mergeChunks(allChunks, output, syncData)
+	return nil
+}
+
+func mergeChunks(allChunks []ChunkInfo, output io.Writer, syncData SyncData) error {
+	outputSHA1 := sha1.New()
+
+	bar := progressbar.DefaultBytes(
+		syncData.FileLength,
+		"Merging chunks: ",
+	)
 
 	for _, chunk := range allChunks {
 		chunkData, err := readChunk(chunk.source, chunk.sourceOffset, chunk.size)
@@ -62,14 +75,19 @@ func Sync(local *os.File, output io.Writer, control control.Control) (err error)
 		if err != nil {
 			return err
 		}
+
+		outputSHA1.Write(chunkData)
+		_, _ = bar.Write(chunkData)
 	}
 
+	outputSHA1Sum := hex.EncodeToString(outputSHA1.Sum(nil))
+	if outputSHA1Sum != syncData.SHA1 {
+		return fmt.Errorf("output checksum don't match with the expected")
+	}
 	return nil
 }
 
 func (syncData *SyncData) SearchLocalMatchingChunks() (matchingChunks []ChunkInfo, err error) {
-	fmt.Println("Looking for reusable chunks")
-
 	matchingChunks, err = syncData.identifyAllLocalMatchingChunks(matchingChunks)
 	if err != nil {
 		return nil, err
@@ -77,14 +95,11 @@ func (syncData *SyncData) SearchLocalMatchingChunks() (matchingChunks []ChunkInf
 
 	matchingChunks = removeDuplicatedChunks(matchingChunks)
 	matchingChunks = removeSmallChunks(matchingChunks, syncData.FileLength)
-	matchingChunks = squashMatchingChunks(matchingChunks)
-
-	syncData.printMatchingChunksStatistics(matchingChunks)
 
 	return
 }
 
-func (syncData *SyncData) printMatchingChunksStatistics(matchingChunks []ChunkInfo) {
+func (syncData *SyncData) printChunksSummary(matchingChunks []ChunkInfo) {
 	reusableChunksSize := int64(0)
 	for _, chunk := range matchingChunks {
 		reusableChunksSize += chunk.size
@@ -111,7 +126,13 @@ func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []ChunkI
 	}
 	_, err = syncData.local.Seek(0, 0)
 
+	progress := progressbar.DefaultBytes(
+		sourceFileSize,
+		"Searching reusable chunks: ",
+	)
+
 	for offset := int64(0); offset < sourceFileSize; offset += lookup {
+		_ = progress.Set(int(offset))
 		chunkSize := int64(syncData.BlockSize)
 		if offset+chunkSize > sourceFileSize {
 			chunkSize = sourceFileSize - offset
@@ -136,6 +157,11 @@ func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []ChunkI
 					sourceOffset: offset,
 					targetOffset: int64(match.ChunkOffset * syncData.BlockSize),
 				}
+
+				// chop zero filled chunks at the end
+				if newChunk.targetOffset+newChunk.size > syncData.FileLength {
+					newChunk.size = syncData.FileLength - newChunk.targetOffset
+				}
 				matchingChunks = append(matchingChunks, newChunk)
 			}
 
@@ -144,31 +170,8 @@ func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []ChunkI
 			lookup = 1
 		}
 	}
+	_ = progress.Set(int(sourceFileSize))
 	return matchingChunks, nil
-}
-
-func squashMatchingChunks(matchingChunks []ChunkInfo) (squashedChunks []ChunkInfo) {
-	sortChunksBySourceOffset(matchingChunks)
-
-	var currentChunk *ChunkInfo
-	for _, chunk := range matchingChunks {
-		if currentChunk == nil {
-			_ = copier.Copy(&chunk, &currentChunk)
-		} else {
-			if areContiguousChunks(currentChunk, chunk) {
-				currentChunk.size += chunk.size
-			} else {
-				squashedChunks = append(squashedChunks, *currentChunk)
-				_ = copier.Copy(&chunk, &currentChunk)
-			}
-		}
-	}
-
-	if currentChunk != nil {
-		squashedChunks = append(squashedChunks, *currentChunk)
-		currentChunk = nil
-	}
-	return
 }
 
 func removeDuplicatedChunks(matchingChunks []ChunkInfo) []ChunkInfo {
@@ -190,18 +193,6 @@ func removeDuplicatedChunks(matchingChunks []ChunkInfo) []ChunkInfo {
 	}
 
 	return result
-}
-
-func areContiguousChunks(currentChunk *ChunkInfo, chunk ChunkInfo) bool {
-	return currentChunk.sourceOffset+currentChunk.size == chunk.sourceOffset &&
-		currentChunk.targetOffset+currentChunk.size == chunk.targetOffset &&
-		currentChunk.source == chunk.source
-}
-
-func sortChunksBySourceOffset(matchingChunks []ChunkInfo) {
-	sort.Slice(matchingChunks, func(i, j int) bool {
-		return matchingChunks[i].sourceOffset < matchingChunks[j].sourceOffset
-	})
 }
 
 func sortChunksByTargetOffset(matchingChunks []ChunkInfo) {
@@ -226,27 +217,34 @@ func (syncData *SyncData) searchMatchingChunks(blockData []byte) []chunks.ChunkC
 }
 
 func (syncData *SyncData) IdentifyMissingChunks(matchingChunks []ChunkInfo) (missing []ChunkInfo) {
+	sortChunksByTargetOffset(matchingChunks)
 	missingChunksSource := sources.HttpFileSource{syncData.URL, 0, syncData.FileLength}
 
 	offset := int64(0)
 	for _, chunk := range matchingChunks {
-		if chunk.targetOffset != offset {
-			missingChunk := ChunkInfo{
-				size:         chunk.targetOffset - offset,
-				source:       missingChunksSource,
-				sourceOffset: offset,
-				targetOffset: offset,
-			}
+		gapSize := chunk.targetOffset - offset
+		if gapSize > 0 {
+			if chunk.targetOffset != offset {
+				missingChunk := ChunkInfo{
+					size:         gapSize,
+					source:       &missingChunksSource,
+					sourceOffset: offset,
+					targetOffset: offset,
+				}
 
-			missing = append(missing, missingChunk)
+				missing = append(missing, missingChunk)
+				offset += gapSize
+			}
 		}
-		offset = chunk.targetOffset + chunk.size
+
+		missing = append(missing, chunk)
+		offset += chunk.size
 	}
 
 	if offset < syncData.FileLength {
 		missingChunk := ChunkInfo{
 			size:         syncData.FileLength - offset,
-			source:       missingChunksSource,
+			source:       &missingChunksSource,
 			sourceOffset: offset,
 			targetOffset: offset,
 		}
