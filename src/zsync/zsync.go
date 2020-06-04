@@ -34,13 +34,13 @@ func Sync(local *os.File, output io.Writer, control control.Control) (err error)
 		Output:                output,
 	}
 
-	matchingChunks, err := syncData.SearchLocalMatchingChunks()
+	reusableChunks, err := syncData.SearchReusableChunks()
 	if err != nil {
 		return err
 	}
 
-	syncData.printChunksSummary(matchingChunks)
-	allChunks := syncData.IdentifyMissingChunks(matchingChunks)
+	syncData.printChunksSummary(reusableChunks)
+	allChunks := syncData.AddMissingChunks(reusableChunks)
 
 	err = syncData.mergeChunks(allChunks, output)
 	return nil
@@ -75,7 +75,7 @@ func (syncData *SyncData) mergeChunks(allChunks []chunks.ChunkInfo, output io.Wr
 	return nil
 }
 
-func (syncData *SyncData) SearchLocalMatchingChunks() (matchingChunks []chunks.ChunkInfo, err error) {
+func (syncData *SyncData) SearchReusableChunks() (matchingChunks []chunks.ChunkInfo, err error) {
 	matchingChunks, err = syncData.identifyAllLocalMatchingChunks(matchingChunks)
 	if err != nil {
 		return nil, err
@@ -204,7 +204,7 @@ func (syncData *SyncData) searchMatchingChunks(blockData []byte) []chunks.ChunkC
 	return nil
 }
 
-func (syncData *SyncData) IdentifyMissingChunks(matchingChunks []chunks.ChunkInfo) (missing []chunks.ChunkInfo) {
+func (syncData *SyncData) AddMissingChunks(matchingChunks []chunks.ChunkInfo) (missing []chunks.ChunkInfo) {
 	sortChunksByTargetOffset(matchingChunks)
 	missingChunksSource := chunks2.HttpFileSource{syncData.URL, 0, syncData.FileLength}
 
