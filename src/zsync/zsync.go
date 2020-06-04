@@ -142,21 +142,7 @@ func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []chunks
 
 		matches := syncData.searchMatchingChunks(data)
 		if matches != nil {
-			for _, match := range matches {
-				newChunk := chunks.ChunkInfo{
-					Size:         chunkSize,
-					Source:       syncData.Local,
-					SourceOffset: offset,
-					TargetOffset: int64(match.ChunkOffset * syncData.BlockSize),
-				}
-
-				// chop zero filled chunks at the end
-				if newChunk.TargetOffset+newChunk.Size > syncData.FileLength {
-					newChunk.Size = syncData.FileLength - newChunk.TargetOffset
-				}
-				matchingChunks = append(matchingChunks, newChunk)
-			}
-
+			matchingChunks = syncData.appendMatchingChunks(matchingChunks, matches, chunkSize, offset)
 			lookup = int64(syncData.BlockSize)
 		} else {
 			lookup = 1
@@ -164,6 +150,24 @@ func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []chunks
 	}
 	_ = progress.Set(int(sourceFileSize))
 	return matchingChunks, nil
+}
+
+func (syncData *SyncData) appendMatchingChunks(matchingChunks []chunks.ChunkInfo, matches []chunks.ChunkChecksum, chunkSize int64, offset int64) []chunks.ChunkInfo {
+	for _, match := range matches {
+		newChunk := chunks.ChunkInfo{
+			Size:         chunkSize,
+			Source:       syncData.Local,
+			SourceOffset: offset,
+			TargetOffset: int64(match.ChunkOffset * syncData.BlockSize),
+		}
+
+		// chop zero filled chunks at the end
+		if newChunk.TargetOffset+newChunk.Size > syncData.FileLength {
+			newChunk.Size = syncData.FileLength - newChunk.TargetOffset
+		}
+		matchingChunks = append(matchingChunks, newChunk)
+	}
+	return matchingChunks
 }
 
 func removeDuplicatedChunks(matchingChunks []chunks.ChunkInfo) []chunks.ChunkInfo {
