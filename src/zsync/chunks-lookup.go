@@ -2,39 +2,73 @@ package zsync
 
 import (
 	"appimage-update/src/zsync/chunks"
+	"appimage-update/src/zsync/circularbuffer"
 	"appimage-update/src/zsync/sources"
+	"fmt"
 	"github.com/schollz/progressbar/v3"
 	"io"
+	"math"
 )
 
 type ChunkLookupSlice struct {
-	currentOffset int64
-	ChunkSize     int64
-	FileSize      int64
-	file          io.ReadSeeker
+	offset              int64
+	chunkSize           int64
+	chunkCount          int64
+	lastFullChunkOffset int64
+	fileSize            int64
+	file                io.ReadSeeker
+	buffer              *circularbuffer.C2
 }
 
-func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []chunks.ChunkInfo) ([]chunks.ChunkInfo, error) {
-	lookup := int64(syncData.BlockSize)
-	sourceFileSize, err := syncData.Local.Seek(0, 2)
+func NewChunkLookupSlice(file io.ReadSeeker, chunkSize int64) (*ChunkLookupSlice, error) {
+	fileSize, err := file.Seek(0, 2)
 	if err != nil {
 		return nil, err
 	}
-	_, err = syncData.Local.Seek(0, 0)
+	_, err = file.Seek(0, 0)
+
+	chunkCount := int64(math.Ceil(float64(fileSize) / float64(chunkSize)))
+
+	lookupSlice := &ChunkLookupSlice{
+		offset:              0,
+		chunkSize:           chunkSize,
+		chunkCount:          chunkCount,
+		lastFullChunkOffset: (fileSize / chunkSize) * chunkSize,
+		fileSize:            fileSize,
+		file:                file,
+		buffer:              circularbuffer.MakeC2Buffer(int(chunkSize)),
+	}
+	return lookupSlice, nil
+}
+
+func (s *ChunkLookupSlice) isEOF() bool {
+	return s.offset <= s.lastFullChunkOffset
+}
+
+func (s ChunkLookupSlice) getNextChunkSize() int64 {
+	if s.offset+s.chunkSize > s.fileSize {
+		return s.fileSize - s.offset
+	} else {
+		return s.chunkSize
+	}
+}
+
+func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []chunks.ChunkInfo) ([]chunks.ChunkInfo, error) {
+	lookupSlice, err := NewChunkLookupSlice(syncData.Local, int64(syncData.BlockSize))
+	if err != nil {
+		return nil, err
+	}
 
 	progress := progressbar.DefaultBytes(
-		sourceFileSize,
+		lookupSlice.fileSize,
 		"Searching reusable chunks: ",
 	)
 
-	for offset := int64(0); offset < sourceFileSize; offset += lookup {
-		_ = progress.Set(int(offset))
-		chunkSize := int64(syncData.BlockSize)
-		if offset+chunkSize > sourceFileSize {
-			chunkSize = sourceFileSize - offset
-		}
+	for lookupSlice.isEOF() {
+		_ = progress.Set(int(lookupSlice.offset))
 
-		data, err := sources.ReadChunk(syncData.Local, offset, chunkSize)
+		chunkSize := lookupSlice.getNextChunkSize()
+		data, err := sources.ReadChunk(syncData.Local, lookupSlice.offset, chunkSize)
 		if err != nil {
 			return nil, err
 		}
@@ -46,13 +80,13 @@ func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []chunks
 
 		matches := syncData.searchMatchingChunks(data)
 		if matches != nil {
-			matchingChunks = syncData.appendMatchingChunks(matchingChunks, matches, chunkSize, offset)
-			lookup = int64(syncData.BlockSize)
+			matchingChunks = syncData.appendMatchingChunks(matchingChunks, matches, chunkSize, lookupSlice.offset)
+			lookupSlice.offset += int64(syncData.BlockSize)
 		} else {
-			lookup = 1
+			lookupSlice.offset += 1
 		}
 	}
-	_ = progress.Set(int(sourceFileSize))
+	_ = progress.Set(int(lookupSlice.fileSize))
 	return matchingChunks, nil
 }
 
