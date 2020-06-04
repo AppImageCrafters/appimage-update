@@ -34,7 +34,7 @@ func Sync(local *os.File, output io.Writer, control control.Control) (err error)
 		Output:                output,
 	}
 
-	reusableChunks, err := syncData.SearchReusableChunks()
+	reusableChunks, err := syncData.searchReusableChunks()
 	if err != nil {
 		return
 	}
@@ -79,7 +79,7 @@ func (syncData *SyncData) mergeChunks(allChunks []chunks.ChunkInfo, output io.Wr
 	return nil
 }
 
-func (syncData *SyncData) SearchReusableChunks() (matchingChunks []chunks.ChunkInfo, err error) {
+func (syncData *SyncData) searchReusableChunks() (matchingChunks []chunks.ChunkInfo, err error) {
 	matchingChunks, err = syncData.identifyAllLocalMatchingChunks(matchingChunks)
 	if err != nil {
 		return nil, err
