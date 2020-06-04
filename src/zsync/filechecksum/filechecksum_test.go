@@ -280,7 +280,7 @@ func ExampleFileChecksumGenerator_LoadChecksumsFromReader() {
 	const BLOCKSIZE = 8096
 	checksum := NewFileChecksumGenerator(BLOCKSIZE)
 
-	// This could be any source that conforms to io.Reader
+	// This could be any sources that conforms to io.Reader
 	// sections of a file, or the body of an http response
 	file1, err := os.Open("fileChecksums.chk")
 

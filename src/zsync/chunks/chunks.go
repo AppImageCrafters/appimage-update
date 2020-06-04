@@ -5,7 +5,7 @@ Since this is fairly widely used, splitting this out breaks a number of possible
 package chunks
 
 import (
-	"appimage-update/src/zsync/reader"
+	"appimage-update/src/zsync/sources"
 	"bytes"
 	"errors"
 	"io"
@@ -35,7 +35,7 @@ func (chunk ChunkChecksum) Match(other ChunkChecksum) bool {
 
 var ErrPartialChecksum = errors.New("Reader length was not a multiple of the checksums")
 
-// Loads chunks from a reader, assuming alternating weak then strong hashes
+// Loads chunks from a sources, assuming alternating weak then strong hashes
 // This function attempts to be compatible with the original zsync implementation therefore the following assumptions
 // are made:
 // - weak checksums are stored in Little Endian notation
@@ -105,7 +105,7 @@ func (s StrongChecksumGetter) GetStrongChecksumForBlock(blockID int) []byte {
 
 type ChunkInfo struct {
 	Size         int64
-	Source       chunks.ReadSeeker
+	Source       chunks.Source
 	SourceOffset int64
 	TargetOffset int64
 }

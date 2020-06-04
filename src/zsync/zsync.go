@@ -3,8 +3,8 @@ package zsync
 import (
 	"appimage-update/src/zsync/chunks"
 	"appimage-update/src/zsync/control"
-	chunks2 "appimage-update/src/zsync/reader"
 	"appimage-update/src/zsync/rollsum"
+	chunks2 "appimage-update/src/zsync/sources"
 	"crypto/sha1"
 	"encoding/hex"
 	"fmt"
@@ -206,7 +206,7 @@ func (syncData *SyncData) searchMatchingChunks(blockData []byte) []chunks.ChunkC
 
 func (syncData *SyncData) IdentifyMissingChunks(matchingChunks []chunks.ChunkInfo) (missing []chunks.ChunkInfo) {
 	sortChunksByTargetOffset(matchingChunks)
-	missingChunksSource := chunks2.HttpFileReader{syncData.URL, 0, syncData.FileLength}
+	missingChunksSource := chunks2.HttpFileSource{syncData.URL, 0, syncData.FileLength}
 
 	offset := int64(0)
 	for _, chunk := range matchingChunks {
@@ -243,7 +243,7 @@ func (syncData *SyncData) IdentifyMissingChunks(matchingChunks []chunks.ChunkInf
 	return
 }
 
-func readChunk(local chunks2.ReadSeeker, offset int64, requiredBytes int64) (blockData []byte, err error) {
+func readChunk(local chunks2.Source, offset int64, requiredBytes int64) (blockData []byte, err error) {
 	_, err = local.Seek(offset, 0)
 	if err != nil {
 		return nil, err
