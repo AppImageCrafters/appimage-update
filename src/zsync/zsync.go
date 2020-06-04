@@ -76,17 +76,21 @@ func (syncData *SyncData) SearchLocalMatchingChunks() (matchingChunks []ChunkInf
 	}
 
 	matchingChunks = removeDuplicatedChunks(matchingChunks)
-	fmt.Println("Reusable chunks found: ", len(matchingChunks))
-	for _, chunk := range matchingChunks {
-		fmt.Printf("Source offset: %d\n", chunk.sourceOffset)
-		fmt.Printf("Target offset: %d\n", chunk.targetOffset)
-		fmt.Printf("Size: %d\n", chunk.size)
-	}
-
 	matchingChunks = removeSmallChunks(matchingChunks, syncData.FileLength)
 	matchingChunks = squashMatchingChunks(matchingChunks)
 
+	syncData.printMatchingChunksStatistics(matchingChunks)
+
 	return
+}
+
+func (syncData *SyncData) printMatchingChunksStatistics(matchingChunks []ChunkInfo) {
+	reusableChunksSize := int64(0)
+	for _, chunk := range matchingChunks {
+		reusableChunksSize += chunk.size
+	}
+	fmt.Printf("Reusable chunks found: %d %dKb (%d%%)\n",
+		len(matchingChunks), reusableChunksSize/1024, reusableChunksSize*100/syncData.FileLength)
 }
 
 func removeSmallChunks(matchingChunks []ChunkInfo, length int64) (filteredChunks []ChunkInfo) {
