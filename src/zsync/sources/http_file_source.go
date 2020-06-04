@@ -70,7 +70,7 @@ func (h HttpFileSource) Read(b []byte) (n int, err error) {
 	}
 }
 
-func (h HttpFileSource) Seek(offset int64, whence int) (int64, error) {
+func (h *HttpFileSource) Seek(offset int64, whence int) (int64, error) {
 	switch whence {
 	case 0:
 		h.Offset = offset
