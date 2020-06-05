@@ -58,11 +58,14 @@ func (c *C2) Reset() {
 }
 
 // Write new data
-func (c *C2) Write(b []byte) {
+func (c *C2) Write(b []byte) (n int, err error) {
 	c.a.Write(b)
 	c.b.Write(b)
 	c.lastWritten = len(b)
 	c.totalWritten += c.lastWritten
+
+	// better error management could be implementeds
+	return len(b), nil
 }
 
 func (c *C2) getBlockBuffer() *doubleSizeBuffer {

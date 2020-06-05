@@ -3,16 +3,16 @@ package zsync
 import (
 	"appimage-update/src/zsync/chunks"
 	"appimage-update/src/zsync/circularbuffer"
-	"appimage-update/src/zsync/sources"
 	"github.com/schollz/progressbar/v3"
 	"io"
 	"math"
 )
 
 type ChunkLookupSlice struct {
-	offset              int64
+	chunkOffset         int64
 	chunkSize           int64
-	chunkCount          int64
+	chunksSize          int64
+	chunksCount         int64
 	lastFullChunkOffset int64
 	fileSize            int64
 	file                io.ReadSeeker
@@ -29,50 +29,74 @@ func NewChunkLookupSlice(file io.ReadSeeker, chunkSize int64) (*ChunkLookupSlice
 	chunkCount := int64(math.Ceil(float64(fileSize) / float64(chunkSize)))
 
 	lookupSlice := &ChunkLookupSlice{
-		offset:              0,
-		chunkSize:           chunkSize,
-		chunkCount:          chunkCount,
+		chunksSize:          chunkSize,
+		chunksCount:         chunkCount,
 		lastFullChunkOffset: (fileSize / chunkSize) * chunkSize,
 		fileSize:            fileSize,
 		file:                file,
 		buffer:              circularbuffer.MakeC2Buffer(int(chunkSize)),
 	}
+	err = lookupSlice.readChunk()
+	if err != nil {
+		return nil, err
+	}
+
 	return lookupSlice, nil
 }
 
 func (s *ChunkLookupSlice) isEOF() bool {
-	return s.offset > s.lastFullChunkOffset
+	return s.chunkOffset > s.lastFullChunkOffset
 }
 
 func (s ChunkLookupSlice) getNextChunkSize() int64 {
-	if s.offset+s.chunkSize > s.fileSize {
-		return s.fileSize - s.offset
+	if s.chunkOffset+s.chunksSize > s.fileSize {
+		return s.fileSize - s.chunkOffset
 	} else {
-		return s.chunkSize
+		return s.chunksSize
 	}
 }
 
-func (s *ChunkLookupSlice) consumeChunk() {
-	s.offset += s.chunkSize
+func (s *ChunkLookupSlice) consumeChunk() error {
+	s.chunkOffset += s.chunksSize
+
+	err := s.readChunk()
+	return err
 }
 
-func (s *ChunkLookupSlice) consumeByte() {
-	s.offset += 1
+func (s *ChunkLookupSlice) consumeByte() error {
+	s.chunkOffset += 1
+
+	err := s.readByte()
+	return err
 }
 
-func (s *ChunkLookupSlice) readNextChunk() (int64, []byte, error) {
-	chunkSize := s.getNextChunkSize()
-	data, err := sources.ReadChunk(s.file, s.offset, chunkSize)
-	if err != nil {
-		return 0, nil, err
+func (s *ChunkLookupSlice) readByte() error {
+	if s.chunkOffset+s.chunkSize > s.fileSize {
+		s.chunkSize = s.fileSize - s.chunkOffset
 	}
 
-	if chunkSize < s.chunkSize {
-		zeroChunk := make([]byte, s.chunkSize-chunkSize)
-		data = append(data, zeroChunk...)
+	_, err := io.CopyN(s.buffer, s.file, 1)
+	if err == io.EOF {
+		_, err = s.buffer.Write([]byte{1})
 	}
 
-	return chunkSize, data, nil
+	return nil
+}
+
+func (s *ChunkLookupSlice) readChunk() (err error) {
+	n, err := io.CopyN(s.buffer, s.file, s.chunksSize)
+	if err == io.EOF {
+		zeroChunk := make([]byte, s.chunksSize-n)
+		_, err = s.buffer.Write(zeroChunk)
+	}
+
+	s.chunkSize = n
+
+	return
+}
+
+func (s *ChunkLookupSlice) getBlock() []byte {
+	return s.buffer.GetBlock()
 }
 
 func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []chunks.ChunkInfo) ([]chunks.ChunkInfo, error) {
@@ -87,19 +111,20 @@ func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []chunks
 	)
 
 	for !lookupSlice.isEOF() {
-		_ = progress.Set(int(lookupSlice.offset))
+		_ = progress.Set(int(lookupSlice.chunkOffset))
 
-		chunkSize, data, err := lookupSlice.readNextChunk()
-		if err != nil {
-			return nil, err
-		}
+		data := lookupSlice.getBlock()
 
 		matches := syncData.searchMatchingChunks(data)
 		if matches != nil {
-			matchingChunks = syncData.appendMatchingChunks(matchingChunks, matches, chunkSize, lookupSlice.offset)
-			lookupSlice.consumeChunk()
+			matchingChunks = syncData.appendMatchingChunks(matchingChunks, matches, lookupSlice.chunkSize, lookupSlice.chunkOffset)
+			err = lookupSlice.consumeChunk()
 		} else {
-			lookupSlice.consumeByte()
+			err = lookupSlice.consumeByte()
+		}
+
+		if err != nil {
+			return nil, err
 		}
 	}
 	_ = progress.Set(int(lookupSlice.fileSize))
