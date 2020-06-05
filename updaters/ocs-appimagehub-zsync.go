@@ -1,15 +1,15 @@
 package updaters
 
 import (
-	"appimage-update/src/appimage"
 	"bytes"
 	"fmt"
-	"github.com/beevik/etree"
-	"github.com/danwakefield/fnmatch"
-	"github.com/schollz/progressbar/v3"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/beevik/etree"
+	"github.com/danwakefield/fnmatch"
+	"github.com/schollz/progressbar/v3"
 )
 
 type OCSAppImageHubZSync struct {
@@ -20,7 +20,7 @@ type OCSAppImageHubZSync struct {
 	pattern   string
 }
 
-func NewOCSAppImageHubZSync(updateInfoString *string, target *appimage.AppImage) (*OCSAppImageHubZSync, error) {
+func NewOCSAppImageHubZSync(updateInfoString *string, appImagePath string) (*OCSAppImageHubZSync, error) {
 	parts := strings.Split(*updateInfoString, "|")
 
 	if len(parts) != 4 {
@@ -29,7 +29,7 @@ func NewOCSAppImageHubZSync(updateInfoString *string, target *appimage.AppImage)
 
 	instance := OCSAppImageHubZSync{
 		zsync: ZSync{
-			seed: *target,
+			seed: appImagePath,
 		},
 
 		apiV1Url:  parts[1],
