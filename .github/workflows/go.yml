@@ -32,10 +32,10 @@ jobs:
 
       - name: Build
         run: |
-          go build -o dist/appimage-builder -v ./cli
+          go build -o appimage-builder -v ./cli
           ls dist
 
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v2
         with:
-          path: ./dist/appimage-update
+          path: appimage-update
