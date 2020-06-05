@@ -33,7 +33,7 @@ jobs:
       - name: Build
         run: |
           go build -o dist/appimage-builder -v ./cli
-          ls
+          ls dist
 
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v2
