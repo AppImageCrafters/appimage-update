@@ -1,16 +1,16 @@
 package updaters
 
 import (
-	"appimage-update/src/appimage"
 	"bufio"
 	"bytes"
 	"fmt"
-	"github.com/beevik/etree"
-	"github.com/danwakefield/fnmatch"
-	"github.com/schollz/progressbar/v3"
 	"io"
 	"net/http"
 	"strings"
+
+	"github.com/beevik/etree"
+	"github.com/danwakefield/fnmatch"
+	"github.com/schollz/progressbar/v3"
 )
 
 type OCSAppImageHubDirect struct {
@@ -21,7 +21,7 @@ type OCSAppImageHubDirect struct {
 	fileName  string
 }
 
-func NewOCSAppImageHubDirect(updateInfoString *string, target *appimage.AppImage) (*OCSAppImageHubDirect, error) {
+func NewOCSAppImageHubDirect(updateInfoString *string, target string) (*OCSAppImageHubDirect, error) {
 	parts := strings.Split(*updateInfoString, "|")
 
 	if len(parts) != 4 {
@@ -30,7 +30,7 @@ func NewOCSAppImageHubDirect(updateInfoString *string, target *appimage.AppImage
 
 	instance := OCSAppImageHubDirect{
 		direct: Direct{
-			seed: *target,
+			seed: target,
 		},
 
 		apiV1Url:  parts[1],

@@ -1,16 +1,16 @@
 package updaters
 
 import (
-	"appimage-update/src/appimage"
 	"context"
 	"fmt"
+	"strings"
+
 	"github.com/danwakefield/fnmatch"
 	"github.com/google/go-github/v31/github"
-	"strings"
 )
 
-type GitHubZsync struct {
-	zsync ZSync
+type GitHubDirect struct {
+	direct Direct
 
 	gitHubUsername   string
 	gitHubRepository string
@@ -18,16 +18,16 @@ type GitHubZsync struct {
 	gitHubFilename   string
 }
 
-func NewGitHubZsyncUpdater(updateInfoString *string, target *appimage.AppImage) (*GitHubZsync, error) {
+func NewGitHubDirectUpdater(updateInfoString *string, target string) (*GitHubDirect, error) {
 	parts := strings.Split(*updateInfoString, "|")
 
 	if len(parts) != 5 {
 		return nil, fmt.Errorf("Invalid GitHub update info. Expected: gh-releases-zsync|<username>|<repo>|<release>|<file name>")
 	}
 
-	info := GitHubZsync{
-		zsync: ZSync{
-			seed: *target,
+	info := GitHubDirect{
+		direct: Direct{
+			seed: target,
 		},
 
 		gitHubUsername:   parts[1],
@@ -39,16 +39,18 @@ func NewGitHubZsyncUpdater(updateInfoString *string, target *appimage.AppImage) 
 	return &info, nil
 }
 
-func (g *GitHubZsync) Method() string {
+func (g *GitHubDirect) Method() string {
 	return "gh-releases-zsync"
 }
 
-func (g *GitHubZsync) Lookup() (updateAvailable bool, err error) {
+func (g *GitHubDirect) Lookup() (updateAvailable bool, err error) {
 	client := github.NewClient(nil)
 	releases, _, err := client.Repositories.ListReleases(context.Background(), g.gitHubUsername, g.gitHubRepository, nil)
 	if err != nil {
 		return false, err
 	}
+
+	var latest_release *github.RepositoryRelease
 
 	for _, release := range releases {
 		if *release.Draft == true {
@@ -60,17 +62,29 @@ func (g *GitHubZsync) Lookup() (updateAvailable bool, err error) {
 			continue
 		}
 
-		for _, asset := range release.Assets {
-			if fnmatch.Match(g.gitHubFilename, *asset.Name, fnmatch.FNM_IGNORECASE) {
-				g.zsync.url = *asset.BrowserDownloadURL
-				return g.zsync.Lookup()
-			}
+		latest_release = release
+		break
+	}
+
+	if latest_release == nil {
+		return false, fmt.Errorf("no releases found")
+	}
+
+	// Support fallback to direct download
+	if strings.HasSuffix(g.gitHubFilename, ".zsync") {
+		g.gitHubFilename = g.gitHubFilename[:len(g.gitHubFilename)-6]
+	}
+
+	for _, asset := range latest_release.Assets {
+		if fnmatch.Match(g.gitHubFilename, *asset.Name, fnmatch.FNM_IGNORECASE) {
+			g.direct.url = *asset.BrowserDownloadURL
+			return g.direct.Lookup()
 		}
 	}
 
 	return false, nil
 }
 
-func (g *GitHubZsync) Download() (output string, err error) {
-	return g.zsync.Download()
+func (g *GitHubDirect) Download() (output string, err error) {
+	return g.direct.Download()
 }

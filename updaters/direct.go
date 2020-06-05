@@ -1,25 +1,26 @@
 package updaters
 
 import (
-	"appimage-update/src/appimage"
 	"fmt"
-	"github.com/schollz/progressbar/v3"
+
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/schollz/progressbar/v3"
 )
 
 type Direct struct {
 	url  string
-	seed appimage.AppImage
+	seed string
 }
 
-func NewDirectUpdater(url *string, seed *appimage.AppImage) (*Direct, error) {
+func NewDirectUpdater(url string, seed string) (*Direct, error) {
 	return &Direct{
-		url:  *url,
-		seed: *seed,
+		url:  url,
+		seed: seed,
 	}, nil
 }
 
@@ -29,7 +30,7 @@ func (d *Direct) Method() string {
 
 func (d *Direct) Lookup() (updateAvailable bool, err error) {
 	outputFile := d.getOutputFileName()
-	if d.seed.Path == outputFile {
+	if d.seed == outputFile {
 		return false, nil
 	} else {
 		return true, nil
@@ -56,7 +57,7 @@ func (d *Direct) getOutputFileName() string {
 
 	fileName := d.url[urlLastPartStart:urlArgumentsStart]
 
-	return filepath.Dir(d.seed.Path) + "/" + fileName
+	return filepath.Dir(d.seed) + "/" + fileName
 }
 
 func downloadFile(filepath string, url string) (err error) {

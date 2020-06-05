@@ -8,7 +8,7 @@
 # Test binary, built with `go test -c`
 *.test
 
-# Output of the go coverage appimage-update, specifically when used with LiteIDE
+# Output of the go coverage cli, specifically when used with LiteIDE
 *.out
 
 # Dependency directories (remove the comment below to include it)

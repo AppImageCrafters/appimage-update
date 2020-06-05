@@ -1,29 +1,30 @@
 package updaters
 
 import (
-	"appimage-update/src/appimage"
-	"appimage-update/src/zsync"
-	"appimage-update/src/zsync/control"
 	"bytes"
 	"fmt"
-	"github.com/schollz/progressbar/v3"
+	"github.com/AppImageCrafters/appimage-update/util"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/AppImageCrafters/zsync"
+	"github.com/AppImageCrafters/zsync/control"
+	"github.com/schollz/progressbar/v3"
 )
 
 type ZSync struct {
 	url string
 
-	seed          appimage.AppImage
+	seed          string
 	seedSHA1      string
 	seedRenamed   bool
 	updateControl *control.Control
 }
 
-func NewZSyncUpdater(updateInfoString *string, target *appimage.AppImage) (*ZSync, error) {
+func NewZSyncUpdater(updateInfoString *string, target string) (*ZSync, error) {
 	parts := strings.Split(*updateInfoString, "|")
 
 	if len(parts) != 2 {
@@ -32,7 +33,7 @@ func NewZSyncUpdater(updateInfoString *string, target *appimage.AppImage) (*ZSyn
 
 	info := ZSync{
 		url:         parts[1],
-		seed:        *target,
+		seed:        target,
 		seedRenamed: false,
 	}
 
@@ -54,7 +55,7 @@ func (inst *ZSync) Lookup() (updateAvailable bool, err error) {
 		return false, err
 	}
 
-	inst.seedSHA1 = inst.seed.GetSHA1()
+	inst.seedSHA1 = util.GetSHA1(inst.seed)
 
 	if inst.seedSHA1 == inst.updateControl.SHA1 {
 		return false, nil
@@ -82,17 +83,17 @@ func (inst *ZSync) Download() (output string, err error) {
 }
 
 func (inst *ZSync) RenameSeedIfRequired(output string) (err error) {
-	if output == inst.seed.Path {
-		fileExtension := filepath.Ext(inst.seed.Path)
-		newSeedPath := inst.seed.Path[:len(inst.seed.Path)-len(fileExtension)]
+	if output == inst.seed {
+		fileExtension := filepath.Ext(inst.seed)
+		newSeedPath := inst.seed[:len(inst.seed)-len(fileExtension)]
 		newSeedPath = newSeedPath + "-old" + fileExtension
 
-		err = os.Rename(inst.seed.Path, newSeedPath)
+		err = os.Rename(inst.seed, newSeedPath)
 		if err != nil {
 			return
 		}
 
-		inst.seed.Path = newSeedPath
+		inst.seed = newSeedPath
 		inst.seedRenamed = true
 		fmt.Println("Old AppImage renamed to: ", newSeedPath)
 	}
@@ -100,7 +101,7 @@ func (inst *ZSync) RenameSeedIfRequired(output string) (err error) {
 }
 
 func (inst *ZSync) GetOutputPath() (output string) {
-	return filepath.Dir(inst.seed.Path) + "/" + inst.updateControl.FileName
+	return filepath.Dir(inst.seed) + "/" + inst.updateControl.FileName
 }
 
 func (inst *ZSync) resolveUrl() string {
@@ -115,14 +116,14 @@ func (inst *ZSync) resolveUrl() string {
 
 func (inst *ZSync) restoreFileAppImage(output string) {
 	if inst.seedRenamed {
-		_ = os.Rename(inst.seed.Path, output)
+		_ = os.Rename(inst.seed, output)
 	} else {
 		_ = os.Remove(output)
 	}
 }
 
 func (inst *ZSync) DownloadTo(targetPath string) (err error) {
-	local, err := os.Open(inst.seed.Path)
+	local, err := os.Open(inst.seed)
 	if err != nil {
 		return
 	}
@@ -145,7 +146,7 @@ func getZsyncRawData(url string) ([]byte, error) {
 		return nil, err
 	}
 
-	req.Header.Set("User-Agent", "appimage-update-go/1.0")
+	req.Header.Set("User-Agent", "cli-go/1.0")
 
 	resp, err := client.Do(req)
 	if err != nil {

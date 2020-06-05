@@ -1,11 +1,11 @@
 package main
 
 import (
-	"appimage-update/src/appimage"
-	"appimage-update/src/appimage/update"
 	"flag"
 	"fmt"
 	"os"
+
+	"github.com/AppImageCrafters/appimage-update"
 )
 
 func main() {
@@ -19,19 +19,19 @@ func main() {
 	}
 
 	if updateInfoString != "" {
-		appImage := appimage.AppImage{Path: args[0]}
+		appImage := args[0]
 		updater, err := update.NewUpdateForUpdateString(updateInfoString, appImage)
 		if err != nil {
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
 
-		tryUpdate(appImage.Path, updater)
+		tryUpdate(appImage, updater)
 		return
 	}
 
 	for _, target := range args {
-		updateMethod, err := update.NewUpdaterFor(&target)
+		updateMethod, err := update.NewUpdaterFor(target)
 		if err != nil {
 			fmt.Println(err.Error())
 		} else {
