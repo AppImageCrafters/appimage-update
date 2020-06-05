@@ -33,7 +33,7 @@ func (target *AppImage) GetUpdateInfo() (string, error) {
 
 	str_end := bytes.Index(sectionData, []byte("\000"))
 	if str_end == -1 || str_end == 0 {
-		return "", fmt.Errorf("No update information found")
+		return "", fmt.Errorf("No update information found in: " + target.Path)
 	}
 
 	update_info := string(sectionData[:str_end])
