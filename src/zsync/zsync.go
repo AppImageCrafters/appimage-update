@@ -80,7 +80,7 @@ func (syncData *SyncData) mergeChunks(allChunks []chunks.ChunkInfo, output io.Wr
 }
 
 func (syncData *SyncData) searchReusableChunks() (matchingChunks []chunks.ChunkInfo, err error) {
-	matchingChunks, err = syncData.identifyAllLocalMatchingChunks(matchingChunks)
+	matchingChunks, err = syncData.SearchAllMatchingChunks()
 	if err != nil {
 		return nil, err
 	}
@@ -135,21 +135,6 @@ func sortChunksByTargetOffset(matchingChunks []chunks.ChunkInfo) {
 	sort.Slice(matchingChunks, func(i, j int) bool {
 		return matchingChunks[i].TargetOffset < matchingChunks[j].TargetOffset
 	})
-}
-
-func (syncData *SyncData) searchMatchingChunks(blockData []byte) []chunks.ChunkChecksum {
-	syncData.WeakChecksumBuilder.Write(blockData)
-	weakSum := syncData.WeakChecksumBuilder.Sum(nil)
-	weakMatches := syncData.ChecksumIndex.FindWeakChecksum2(weakSum)
-	if weakMatches != nil {
-		syncData.StrongChecksumBuilder.Reset()
-		syncData.StrongChecksumBuilder.Write(blockData)
-		strongSum := syncData.StrongChecksumBuilder.Sum(nil)
-
-		return syncData.ChecksumIndex.FindStrongChecksum2(strongSum, weakMatches)
-	}
-
-	return nil
 }
 
 func (syncData *SyncData) AddMissingChunks(matchingChunks []chunks.ChunkInfo) (missing []chunks.ChunkInfo) {

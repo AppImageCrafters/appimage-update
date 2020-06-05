@@ -4,6 +4,7 @@ import (
 	"appimage-update/src/zsync/chunks"
 	"appimage-update/src/zsync/circularbuffer"
 	"github.com/schollz/progressbar/v3"
+	"hash"
 	"io"
 	"math"
 )
@@ -17,9 +18,11 @@ type ChunkLookupSlice struct {
 	fileSize            int64
 	file                io.ReadSeeker
 	buffer              *circularbuffer.C2
+	weakChecksum        hash.Hash
+	strongChecksum      hash.Hash
 }
 
-func NewChunkLookupSlice(file io.ReadSeeker, chunkSize int64) (*ChunkLookupSlice, error) {
+func NewChunkLookupSlice(file io.ReadSeeker, chunkSize int64, weakChecksum hash.Hash, strongChecksum hash.Hash) (*ChunkLookupSlice, error) {
 	fileSize, err := file.Seek(0, 2)
 	if err != nil {
 		return nil, err
@@ -35,6 +38,8 @@ func NewChunkLookupSlice(file io.ReadSeeker, chunkSize int64) (*ChunkLookupSlice
 		fileSize:            fileSize,
 		file:                file,
 		buffer:              circularbuffer.MakeC2Buffer(int(chunkSize)),
+		weakChecksum:        weakChecksum,
+		strongChecksum:      strongChecksum,
 	}
 	err = lookupSlice.readChunk()
 	if err != nil {
@@ -75,19 +80,21 @@ func (s *ChunkLookupSlice) readByte() error {
 		s.chunkSize = s.fileSize - s.chunkOffset
 	}
 
-	_, err := io.CopyN(s.buffer, s.file, 1)
+	_, err := io.CopyN(io.MultiWriter(s.buffer, s.weakChecksum), s.file, 1)
 	if err == io.EOF {
-		_, err = s.buffer.Write([]byte{1})
+		multiWriter := io.MultiWriter(s.buffer, s.weakChecksum)
+		_, err = multiWriter.Write([]byte{1})
 	}
 
 	return nil
 }
 
 func (s *ChunkLookupSlice) readChunk() (err error) {
-	n, err := io.CopyN(s.buffer, s.file, s.chunksSize)
+	n, err := io.CopyN(io.MultiWriter(s.buffer, s.weakChecksum), s.file, s.chunksSize)
 	if err == io.EOF {
 		zeroChunk := make([]byte, s.chunksSize-n)
-		_, err = s.buffer.Write(zeroChunk)
+		multiWriter := io.MultiWriter(s.buffer, s.weakChecksum)
+		_, err = multiWriter.Write(zeroChunk)
 	}
 
 	s.chunkSize = n
@@ -99,8 +106,22 @@ func (s *ChunkLookupSlice) getBlock() []byte {
 	return s.buffer.GetBlock()
 }
 
-func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []chunks.ChunkInfo) ([]chunks.ChunkInfo, error) {
-	lookupSlice, err := NewChunkLookupSlice(syncData.Local, int64(syncData.BlockSize))
+func (s ChunkLookupSlice) GetWeakChecksum() []byte {
+	return s.weakChecksum.Sum(nil)
+}
+
+func (s ChunkLookupSlice) GetStrongChecksum() []byte {
+	s.strongChecksum.Reset()
+	s.strongChecksum.Write(s.getBlock())
+	return s.strongChecksum.Sum(nil)
+}
+
+func (syncData *SyncData) SearchAllMatchingChunks() ([]chunks.ChunkInfo, error) {
+	var matchingChunks []chunks.ChunkInfo
+	lookupSlice, err := NewChunkLookupSlice(syncData.Local, int64(syncData.BlockSize),
+		syncData.WeakChecksumBuilder,
+		syncData.StrongChecksumBuilder)
+
 	if err != nil {
 		return nil, err
 	}
@@ -113,16 +134,18 @@ func (syncData *SyncData) identifyAllLocalMatchingChunks(matchingChunks []chunks
 	for !lookupSlice.isEOF() {
 		_ = progress.Set(int(lookupSlice.chunkOffset))
 
-		data := lookupSlice.getBlock()
-
-		matches := syncData.searchMatchingChunks(data)
-		if matches != nil {
-			matchingChunks = syncData.appendMatchingChunks(matchingChunks, matches, lookupSlice.chunkSize, lookupSlice.chunkOffset)
-			err = lookupSlice.consumeChunk()
-		} else {
-			err = lookupSlice.consumeByte()
+		weakMatches := syncData.ChecksumIndex.FindWeakChecksum2(lookupSlice.GetWeakChecksum())
+		if weakMatches != nil {
+			strongSum := lookupSlice.GetStrongChecksum()
+			strongMatches := syncData.ChecksumIndex.FindStrongChecksum2(strongSum, weakMatches)
+			if strongMatches != nil {
+				matchingChunks = syncData.appendMatchingChunks(matchingChunks, strongMatches, lookupSlice.chunkSize, lookupSlice.chunkOffset)
+				err = lookupSlice.consumeChunk()
+				continue
+			}
 		}
 
+		err = lookupSlice.consumeByte()
 		if err != nil {
 			return nil, err
 		}
