@@ -31,9 +31,7 @@ jobs:
           fi
 
       - name: Build
-        run: |
-          go build -o appimage-update -v ./cli
-          ls dist
+        run: go build -o appimage-update -v ./cli
 
       - name: Upload a Build Artifact
         uses: actions/upload-artifact@v2
