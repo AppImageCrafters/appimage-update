@@ -22,7 +22,7 @@ func NewGitHubDirectUpdater(updateInfoString *string, target string) (*GitHubDir
 	parts := strings.Split(*updateInfoString, "|")
 
 	if len(parts) != 5 {
-		return nil, fmt.Errorf("Invalid GitHub update info. Expected: gh-releases-zsync|<username>|<repo>|<release>|<file name>")
+		return nil, fmt.Errorf("Invalid GitHub update info. Expected: gh-releases-direct|<username>|<repo>|<release>|<file name>")
 	}
 
 	info := GitHubDirect{
@@ -40,7 +40,7 @@ func NewGitHubDirectUpdater(updateInfoString *string, target string) (*GitHubDir
 }
 
 func (g *GitHubDirect) Method() string {
-	return "gh-releases-zsync"
+	return "gh-releases-direct"
 }
 
 func (g *GitHubDirect) Lookup() (updateAvailable bool, err error) {
