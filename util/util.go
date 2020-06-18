@@ -26,10 +26,6 @@ func GetSHA1(appImagePath string) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-func setExecutionPermissions(appImagePath string) error {
-	return os.Chmod(appImagePath, 7550)
-}
-
 func ReadUpdateInfo(appImagePath string) (string, error) {
 	elfFile, err := elf.Open(appImagePath)
 	if err != nil {
