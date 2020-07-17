@@ -3,15 +3,17 @@ package updaters
 import (
 	"bytes"
 	"fmt"
-	"github.com/AppImageCrafters/appimage-update/util"
 	"io"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/AppImageCrafters/appimage-update/util"
 	"github.com/AppImageCrafters/zsync"
+	"github.com/AppImageCrafters/zsync/chunks"
 	"github.com/AppImageCrafters/zsync/control"
+	"github.com/AppImageCrafters/zsync/sources"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -123,20 +125,70 @@ func (inst *ZSync) restoreFileAppImage(output string) {
 }
 
 func (inst *ZSync) DownloadTo(targetPath string) (err error) {
-	local, err := os.Open(inst.seed)
-	if err != nil {
-		return
-	}
-	defer local.Close()
-
 	output, err := os.OpenFile(targetPath, os.O_RDWR|os.O_CREATE, 0755)
 	if err != nil {
 		return
 	}
 	defer output.Close()
 
-	err = zsync.Sync(local, output, *inst.updateControl)
-	return
+	zSync2 := zsync.ZSync2{
+		BlockSize:      int64(inst.updateControl.BlockSize),
+		ChecksumsIndex: inst.updateControl.ChecksumIndex,
+		RemoteFileUrl:  inst.updateControl.URL,
+		RemoteFileSize: inst.updateControl.FileLength,
+	}
+
+	pb := progressbar.DefaultBytes(zSync2.RemoteFileSize, "Searching reusable chunks")
+	reusableChunks, err := zSync2.SearchReusableChunks(inst.seed)
+
+	if err != nil {
+		return err
+	}
+
+	input, err := os.Open(inst.seed)
+	if err != nil {
+		return err
+	}
+
+	chunkMapper := chunks.NewFileChunksMapper(zSync2.RemoteFileSize)
+	for chunk := range reusableChunks {
+		err = zSync2.WriteChunk(input, output, chunk)
+		if err != nil {
+			return err
+		}
+
+		chunkMapper.Add(chunk)
+
+		_ = pb.Add(int(chunk.Size))
+	}
+
+	pb.Describe("Downloading missing chunks")
+	missingChunksSource := sources.HttpFileSource{URL: zSync2.RemoteFileUrl, Size: zSync2.RemoteFileSize}
+	missingChunks := chunkMapper.GetMissingChunks()
+
+	for _, chunk := range missingChunks {
+		// fetch whole chunk to reduce the number of request
+		_, err = missingChunksSource.Seek(chunk.SourceOffset, io.SeekStart)
+		if err != nil {
+			return err
+		}
+
+		err = missingChunksSource.Request(chunk.Size)
+		if err != nil {
+			return err
+		}
+
+		err = zSync2.WriteChunk(&missingChunksSource, output, chunk)
+		if err != nil {
+			return err
+		}
+
+		_ = pb.Add(int(chunk.Size))
+	}
+
+	_ = pb.Finish()
+
+	return nil
 }
 
 func getZsyncRawData(url string) ([]byte, error) {
