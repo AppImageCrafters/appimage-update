@@ -3,7 +3,7 @@ module github.com/AppImageCrafters/appimage-update
 go 1.13
 
 require (
-	github.com/AppImageCrafters/zsync v0.1.4
+	github.com/AppImageCrafters/libzsync-go v0.1.5
 	github.com/beevik/etree v1.1.0
 	github.com/danwakefield/fnmatch v0.0.0-20160403171240-cbb64ac3d964
 	github.com/glycerine/goconvey v0.0.0-20190410193231-58a59202ab31 // indirect

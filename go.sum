@@ -1,5 +1,7 @@
-github.com/AppImageCrafters/zsync v0.1.4 h1:auVtVzj+3qII5WXBVPIuTq7YIHCmr9vlWJJEvkVloaA=
-github.com/AppImageCrafters/zsync v0.1.4/go.mod h1:GlIuJzFA+iid38KFqzSka8TVDzTLW0u2w4NzvPmeYg0=
+github.com/AppImageCrafters/libzsync-go v0.1.4 h1:auVtVzj+3qII5WXBVPIuTq7YIHCmr9vlWJJEvkVloaA=
+github.com/AppImageCrafters/libzsync-go v0.1.4/go.mod h1:GlIuJzFA+iid38KFqzSka8TVDzTLW0u2w4NzvPmeYg0=
+github.com/AppImageCrafters/libzsync-go v0.1.5 h1:4ZXW7TSU6tmCy4gmugDDFW6aFmV/mkooHq8UkjcFyfY=
+github.com/AppImageCrafters/libzsync-go v0.1.5/go.mod h1:lF+WsCvezwqAfTa/icnXvmGsCPeq/zDpFGSEE/cw/AQ=
 github.com/beevik/etree v1.1.0 h1:T0xke/WvNtMoCqgzPhkX2r4rjY3GDZFi+FjpRZY2Jbs=
 github.com/beevik/etree v1.1.0/go.mod h1:r8Aw8JqVegEf0w2fDnATrX9VpkMcyFeM0FhwO62wh+A=
 github.com/creack/pty v1.1.9/go.mod h1:oKZEueFk5CKHvIhNR5MUki03XCEU+Q6VDXinZuGJ33E=

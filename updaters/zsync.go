@@ -1,7 +1,6 @@
 package updaters
 
 import (
-	"bytes"
 	"fmt"
 	"io"
 	"net/http"
@@ -10,10 +9,10 @@ import (
 	"strings"
 
 	"github.com/AppImageCrafters/appimage-update/util"
-	"github.com/AppImageCrafters/zsync"
-	"github.com/AppImageCrafters/zsync/chunks"
-	"github.com/AppImageCrafters/zsync/control"
-	"github.com/AppImageCrafters/zsync/sources"
+	"github.com/AppImageCrafters/libzsync-go"
+	"github.com/AppImageCrafters/libzsync-go/chunksmapper"
+	"github.com/AppImageCrafters/libzsync-go/control"
+	"github.com/AppImageCrafters/libzsync-go/sources"
 	"github.com/schollz/progressbar/v3"
 )
 
@@ -52,7 +51,8 @@ func (inst *ZSync) Lookup() (updateAvailable bool, err error) {
 		return false, err
 	}
 
-	inst.updateControl, err = control.ParseControl(zsyncRawData)
+	inst.updateControl, err = control.ReadControl(zsyncRawData)
+	zsyncRawData.Close()
 	if err != nil {
 		return false, err
 	}
@@ -131,7 +131,7 @@ func (inst *ZSync) DownloadTo(targetPath string) (err error) {
 	}
 	defer output.Close()
 
-	zSync2 := zsync.ZSync2{
+	zSync2 := zsync.ZSync{
 		BlockSize:      int64(inst.updateControl.BlockSize),
 		ChecksumsIndex: inst.updateControl.ChecksumIndex,
 		RemoteFileUrl:  inst.updateControl.URL,
@@ -150,7 +150,7 @@ func (inst *ZSync) DownloadTo(targetPath string) (err error) {
 		return err
 	}
 
-	chunkMapper := chunks.NewFileChunksMapper(zSync2.RemoteFileSize)
+	chunkMapper := chunksmapper.NewFileChunksMapper(zSync2.RemoteFileSize)
 	for chunk := range reusableChunks {
 		err = zSync2.WriteChunk(input, output, chunk)
 		if err != nil {
@@ -191,7 +191,7 @@ func (inst *ZSync) DownloadTo(targetPath string) (err error) {
 	return nil
 }
 
-func getZsyncRawData(url string) ([]byte, error) {
+func getZsyncRawData(url string) (io.ReadCloser, error) {
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
@@ -204,23 +204,10 @@ func getZsyncRawData(url string) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
 
 	if resp.StatusCode < 200 || resp.StatusCode > 299 {
 		return nil, fmt.Errorf("Zsync file download failed: %d", resp.StatusCode)
 	}
 
-	bar := progressbar.DefaultBytes(
-		resp.ContentLength,
-		"Downloading zsync file: ",
-	)
-
-	var buf bytes.Buffer
-	_, err = io.Copy(io.MultiWriter(&buf, bar), resp.Body)
-
-	if err != nil {
-		return nil, err
-	}
-
-	return buf.Bytes(), nil
+	return resp.Body, err
 }
